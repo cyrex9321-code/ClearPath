@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+    <Using Include="ClearPath.TestSupport" />
+    <Compile Include="..\Shared\TempSandbox.cs" Link="Shared\TempSandbox.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ClearPath.Core\ClearPath.Core.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Bootstrap\ClearPath.Bootstrap.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Windows\ClearPath.Windows.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Infrastructure\ClearPath.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Scanning\ClearPath.Scanning.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Cleaning\ClearPath.Cleaning.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Backup\ClearPath.Backup.csproj" />
+    <!--
+      The App (WPF WinExe, assembly name "ClearPath") is referenced for BUILD ORDER ONLY: ReferenceOutputAssembly=false means
+      we never load WPF types into the test process or copy the exe here. OutputItemType exposes the built ClearPath.dll path,
+      which the target below bakes into assembly metadata so tests can inspect the real App binary with MetadataReader / NetArchTest.
+    -->
+    <ProjectReference Include="..\..\src\ClearPath.App\ClearPath.App.csproj" ReferenceOutputAssembly="false" OutputItemType="ClearPathAppOutput" />
+  </ItemGroup>
+  <Target Name="EmbedAppAssemblyPath" BeforeTargets="CreateGeneratedAssemblyInfoInputsCacheFile" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <_AppDll Include="@(ClearPathAppOutput)" Condition="'%(Filename)%(Extension)' == 'ClearPath.dll'" />
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>ClearPath.App.AssemblyPath</_Parameter1>
+        <_Parameter2>@(_AppDll->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+</Project>
