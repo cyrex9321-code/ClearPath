@@ -38,8 +38,14 @@ public sealed class LocalPath : IEquatable<LocalPath>
     /// <summary>Win32 extended-length form (<c>\\?\C:\...</c>) for passing to native APIs.</summary>
     public string ToExtendedLengthString() => ExtendedPrefix + ToString();
 
+    /// <summary>Appends exactly one validated component (no separators, not empty).</summary>
     public LocalPath Append(string component)
     {
+        if (string.IsNullOrEmpty(component) || component.Contains(Separator, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Append takes exactly one non-empty path component.", nameof(component));
+        }
+
         var combined = Components.Count == 0 ? DriveRoot + component : ToString() + Separator + component;
         return Parse(combined);
     }
@@ -97,6 +103,8 @@ public sealed class LocalPath : IEquatable<LocalPath>
         }
 
         var body = path[3..];
+        // A separator directly after the root ("C:\\") is an empty component, not a trailing separator.
+        if (body.StartsWith(Separator)) { error = "Path contains an empty component."; return false; }
         if (body.EndsWith(Separator)) body = body[..^1];
 
         var components = new List<string>();

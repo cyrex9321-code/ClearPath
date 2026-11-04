@@ -61,7 +61,9 @@ Scope: the MVP (Phase 1 + 2). Authoritative detail lives in the frozen plan (sec
 | Cross-volume items skipped | Metadata faithfulness cannot be proven for all properties/filesystems | Skipped with reason rather than risk loss |
 | Windows behaviour differences | Handle API semantics (for example rename flags, ChangeTime) may differ by version | M2 capability tests on Windows 11 and Windows 10 22H2; undocumented differences => skip, not assume |
 | Correctness of low-level P/Invoke code | Complex and safety-critical | M2 design review, M3 independent diff review, adversarial tests, CrashHarness; not formally verified |
-| Packages on net10 | Compatibility TBC | Build/smoke gates in M0/M1 ([04](04-stack.md)) |
+| Packages on net10 | Confirmed in M1; no vulnerable packages | Re-run `build/check-vulns.ps1` every milestone ([04](04-stack.md)) |
+| Infrastructure-owned files created by path | `settings.json`, `clearpath.db` (+WAL/SHM) and logs are created by System.IO / SQLite / Serilog inside the handle-validated `ClearPath\` directory | Accepted for M1 (ClearPath's own files, not user data); to be reviewed in M2 |
+| MSIX file-system virtualization | When started from a packaged (MSIX) app, writes under `%LOCALAPPDATA%` are redirected to the package's `LocalCache` | `HandleDirectoryProvisioner` detects the final-path mismatch and refuses to start (fail closed), naming the cause; observed 2026-11-05 when launched from the Claude desktop app |
 | Process-level attacker with same user rights | A same-user attacker can already modify user files | Out of scope; ClearPath defends against races and misconfiguration, not a fully compromised user session |
 | Windows 10 without security updates | OS-level mitigations absent | Compatibility only; no security assurance for unsupported OS installs ([14](14-release.md)) |
 

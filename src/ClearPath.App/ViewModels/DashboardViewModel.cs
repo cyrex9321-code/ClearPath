@@ -235,7 +235,7 @@ public sealed partial class DashboardViewModel : ObservableObject
         if (s.Recycle.IsAvailable && s.Recycle.Value is { } bin)
         {
             RecycleBinValue = Formatters.Bytes(bin.TotalBytes);
-            RecycleBinDetail = $"{Formatters.Count(bin.ItemCount)} items";
+            RecycleBinDetail = bin.ItemCount == 1 ? "1 item" : $"{Formatters.Count(bin.ItemCount)} items";
         }
         else
         {
@@ -277,7 +277,7 @@ public sealed partial class DashboardViewModel : ObservableObject
                     : $"{Formatters.Timestamp(h.Scan.StartedUtc)} · {h.Scan.State} · {Formatters.Count(h.Scan.FilesFound)} files, {Formatters.Bytes(h.Scan.BytesFound)}";
                 LastCleanupText = h.Cleanup is null
                     ? "No cleanups yet"
-                    : $"{Formatters.Timestamp(h.Cleanup.CreatedUtc)} · {h.Cleanup.State} · {Formatters.Count(h.Cleanup.ItemCount)} items, {Formatters.Bytes(h.Cleanup.LogicalBytes)}";
+                    : $"{Formatters.Timestamp(h.Cleanup.CreatedUtc)} · {h.Cleanup.State} · {Formatters.Count(h.Cleanup.ItemCount)} item(s), {Formatters.Bytes(h.Cleanup.LogicalBytes)}";
             }
         }
     }

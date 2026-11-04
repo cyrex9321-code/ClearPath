@@ -75,7 +75,7 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource StatLabelStyle}" Text="CPU usage this session" />
                         <Grid Height="190" Margin="0,8,0,0">
-                            <lvc:CartesianChart Series="{Binding CpuSeries}"
+                            <lvc:CartesianChart Series="{Binding CpuSeries}" Background="Transparent"
                                                 XAxes="{Binding CpuXAxes}"
                                                 YAxes="{Binding CpuYAxes}"
                                                 Visibility="{Binding HasCpuSamples, Converter={StaticResource BoolToVis}}" />

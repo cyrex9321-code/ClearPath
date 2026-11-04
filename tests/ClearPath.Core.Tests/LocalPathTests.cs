@@ -89,7 +89,7 @@ public class LocalPathTests
         error.Should().NotBeNullOrWhiteSpace();
     }
 
-    [Fact(Skip = "BUG: LocalPath.TryParse accepts 'C:' followed by two backslashes as C:\\ - trailing-separator trimming swallows the empty component.")]
+    [Fact]
     public void Rejects_doubled_separator_directly_after_drive_root()
     {
         // "C:\\" (two backslashes) has an empty component; the trailing-separator normalisation swallows it.
@@ -205,10 +205,17 @@ public class LocalPathTests
 
     // ---------- Append ----------
 
-    [Fact(Skip = "BUG: LocalPath.Append(\"\") is accepted and returns the unchanged path (empty component not rejected).")]
+    [Fact]
     public void Append_rejects_empty_component()
     {
         var act = () => LocalPath.Parse(@"C:\a").Append("");
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Append_rejects_multiple_components_in_one_call()
+    {
+        var act = () => LocalPath.Parse(@"C:\a").Append(@"x\y");
         act.Should().Throw<ArgumentException>();
     }
 

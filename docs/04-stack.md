@@ -68,16 +68,16 @@ FluentAssertions v8 moved to a commercial license. **AwesomeAssertions** (commun
 
 ## 7. Package compatibility on net10
 
-Status: **to be confirmed by build in M0/M1** (the lead updates this table).
+Status: **all confirmed in M1** (2026-11-05). `dotnet list package --vulnerable --include-transitive`: no vulnerable packages.
 
 | Package | Expected | Status | Evidence / resolution |
 |---|---|---|---|
-| WPF-UI 4.3.0 | Loads on net10-windows via forward-compatible TFM | TBC | Build + smoke run (themes, navigation) |
-| LiveChartsCore.SkiaSharpView.WPF 2.0.5 | Works on net10 | TBC | Build + render a chart in smoke run |
-| CommunityToolkit.Mvvm 8.4.2 | Works (source generators) | TBC | Build |
-| Microsoft.Extensions.Hosting 10.0.14 | Native | TBC | Build + DI resolution tests |
-| Microsoft.Data.Sqlite 10.0.14 | Native; native SQLite binary resolves for win-x64 | TBC | Journal open/WAL test |
-| Serilog 4.4.0 / Sinks.File 7.0.0 / Extensions.Hosting 10.0.0 | Native/compatible | TBC | Log file written in smoke run |
-| xunit.v3 4.0.2 + Test.Sdk 18.11.0 | Works | TBC | `dotnet test` |
-| NetArchTest.Rules 1.3.2 | Works on net10 assemblies | TBC | Architecture tests execute and can fail |
-| AwesomeAssertions 9.6.0 | Works | TBC | `dotnet test` |
+| WPF-UI 4.3.0 | Loads on net10-windows via forward-compatible TFM | **Confirmed** | Release build 0 warnings; app launched, FluentWindow/Mica/NavigationView rendered, all pages navigated (2026-11-05) |
+| LiveChartsCore.SkiaSharpView.WPF 2.0.5 | Works on net10 | **Confirmed** | CPU line chart rendered live in smoke run; needed `Background="Transparent"` for dark theme |
+| CommunityToolkit.Mvvm 8.4.2 | Works (source generators) | **Confirmed** | Build (generated properties/commands used by all view models) |
+| Microsoft.Extensions.Hosting 10.0.14 | Native | **Confirmed** | Build + Bootstrap DI resolution tests (ValidateOnBuild) pass |
+| Microsoft.Data.Sqlite 10.0.14 | Native; native SQLite binary resolves for win-x64 | **Confirmed** | Infrastructure tests (schema, WAL, queries) pass; app migrated DB to v1 at startup |
+| Serilog 4.4.0 / Sinks.File 7.0.0 / Extensions.Hosting 10.0.0 | Native/compatible | **Confirmed** | Log file written in smoke runs, no ERR/WRN |
+| xunit.v3 4.0.2 + Test.Sdk 18.11.0 | Works | **Confirmed** | Requires `global.json` `test.runner = Microsoft.Testing.Platform` on the .NET 10 SDK; 292 tests run |
+| NetArchTest.Rules 1.3.2 | Works on net10 assemblies | **Confirmed** | Architecture tests run, incl. a positive control proving the rule can fail |
+| AwesomeAssertions 9.6.0 | Works | **Confirmed** | `dotnet test` |
