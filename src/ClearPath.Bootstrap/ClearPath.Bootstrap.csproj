@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\ClearPath.Core\ClearPath.Core.csproj" />
+    <ProjectReference Include="..\ClearPath.Scanning\ClearPath.Scanning.csproj" />
+    <ProjectReference Include="..\ClearPath.Cleaning\ClearPath.Cleaning.csproj" />
+    <ProjectReference Include="..\ClearPath.Backup\ClearPath.Backup.csproj" />
+    <ProjectReference Include="..\ClearPath.Windows\ClearPath.Windows.csproj" />
+    <ProjectReference Include="..\ClearPath.Infrastructure\ClearPath.Infrastructure.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+  </ItemGroup>
+</Project>

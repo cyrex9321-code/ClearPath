@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ClearPath.App/ClearPath.App.csproj" />
+    <Project Path="src/ClearPath.Backup/ClearPath.Backup.csproj" />
+    <Project Path="src/ClearPath.Bootstrap/ClearPath.Bootstrap.csproj" />
+    <Project Path="src/ClearPath.Cleaning/ClearPath.Cleaning.csproj" />
+    <Project Path="src/ClearPath.Core/ClearPath.Core.csproj" />
+    <Project Path="src/ClearPath.Infrastructure/ClearPath.Infrastructure.csproj" />
+    <Project Path="src/ClearPath.Scanning/ClearPath.Scanning.csproj" />
+    <Project Path="src/ClearPath.Windows/ClearPath.Windows.csproj" />
+  </Folder>
+</Solution>
