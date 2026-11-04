@@ -1,0 +1,50 @@
+<Page x:Class="ClearPath.App.Views.QuickCleanPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Quick Clean">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="{StaticResource Pad.Page}">
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="Quick Clean" />
+            <TextBlock Style="{StaticResource PageSubtitleStyle}"
+                       Text="Quick Clean will only ever look at the six locations below. Nothing outside this list is scanned." />
+
+            <ui:InfoBar Title="Scanning and cleaning are not implemented yet"
+                        Message="They arrive in milestone M3, after the safety design is approved. This page is information only; nothing here can scan or change files."
+                        Severity="Informational" IsOpen="True" IsClosable="False" Margin="0,16,0,0" />
+
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Planned categories" />
+
+            <ItemsControl ItemsSource="{Binding Categories}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Margin="{StaticResource Margin.Card}">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" FontSize="16" Text="{Binding Name}" />
+                                <Grid Margin="0,10,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="3*" />
+                                        <ColumnDefinition Width="2*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Location" />
+                                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding Location}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Minimum age" />
+                                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding MinimumAge}" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,10,0,2" Text="Risk note" />
+                                <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RiskNote}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,4,0,0"
+                       Text="Read-only files, system files and files that are in use will always be skipped. When cleaning arrives, files are moved to quarantine first so they can be restored." />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,105 @@
+<Page x:Class="ClearPath.App.Views.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Settings">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="{StaticResource Pad.Page}" MaxWidth="820" HorizontalAlignment="Left">
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="Settings" />
+            <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="Changes take effect when you press Save." />
+
+            <ui:InfoBar Title="{Binding FeedbackTitle}" Message="{Binding FeedbackMessage}"
+                        Severity="Success" IsOpen="{Binding SuccessOpen, Mode=TwoWay}" Margin="0,16,0,0" />
+            <ui:InfoBar Title="{Binding FeedbackTitle}" Message="{Binding FeedbackMessage}"
+                        Severity="Error" IsOpen="{Binding ErrorOpen, Mode=TwoWay}" Margin="0,16,0,0" />
+
+            <!-- Appearance -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Appearance" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Theme" />
+                    <ComboBox ItemsSource="{Binding Themes}" SelectedItem="{Binding SelectedTheme}" MinWidth="200" HorizontalAlignment="Left" />
+                    <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,6,0,0"
+                               Text="System follows your Windows light/dark setting." />
+                </StackPanel>
+            </Border>
+
+            <!-- Quarantine -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Quarantine" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Retention (days)" />
+                    <ui:NumberBox Value="{Binding RetentionDays, UpdateSourceTrigger=PropertyChanged}"
+                                  Minimum="1" Maximum="3650" SmallChange="1" LargeChange="10"
+                                  MaxDecimalPlaces="0" MinWidth="200" HorizontalAlignment="Left" />
+                    <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,6,0,0"
+                               Text="Whole days from 1 to 3650. Quarantined items older than this are flagged as expired; nothing is deleted automatically." />
+
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,2" Text="Quarantine location" />
+                    <TextBox Text="{Binding DefaultQuarantinePath, Mode=OneWay}" IsReadOnly="True" />
+                    <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,6,0,0"
+                               Text="Changing the location becomes available in M3 with destination validation." />
+                </StackPanel>
+            </Border>
+
+            <!-- Exclusions -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Cleanup exclusions" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,0,0,8"
+                               Text="Paths or patterns that cleanup must never touch." />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:TextBox Text="{Binding NewExclusion, UpdateSourceTrigger=PropertyChanged}"
+                                 PlaceholderText="Enter a path or pattern" />
+                        <ui:Button Grid.Column="1" Content="Add" Margin="8,0,0,0" Command="{Binding AddExclusionCommand}" />
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,12,0,0" Text="No exclusions set."
+                               Visibility="{Binding HasNoExclusions, Converter={StaticResource BoolToVis}}" />
+                    <ItemsControl ItemsSource="{Binding Exclusions}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Text="{Binding}" />
+                                    <ui:Button Grid.Column="1" Content="Remove"
+                                               Command="{Binding DataContext.RemoveExclusionCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                               CommandParameter="{Binding}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Logs -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Diagnostics" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Log folder" />
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding LogDirectory}" />
+                    <ui:Button Content="Open log folder" Margin="0,10,0,0" Command="{Binding OpenLogFolderCommand}" />
+                </StackPanel>
+            </Border>
+
+            <!-- About -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="About" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Version" />
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding AppVersion}" />
+                </StackPanel>
+            </Border>
+
+            <ui:Button Content="Save" Appearance="Primary" Margin="0,24,0,0" HorizontalAlignment="Left" MinWidth="120"
+                       Command="{Binding SaveCommand}" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

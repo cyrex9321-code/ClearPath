@@ -1,0 +1,133 @@
+<Page x:Class="ClearPath.App.Views.SafetyCenterPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Safety Center">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="{StaticResource Pad.Page}">
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="Safety Center" />
+            <TextBlock Style="{StaticResource PageSubtitleStyle}"
+                       Text="What ClearPath is allowed to do, what is held in quarantine, and anything that needs your attention." />
+
+            <!-- Privilege -->
+            <ui:InfoBar Title="Running without administrator rights"
+                        Message="ClearPath is designed to run this way. It only works on files owned by your account and never asks for elevation."
+                        Severity="Warning" IsOpen="True" IsClosable="False" Margin="0,16,0,0"
+                        Visibility="{Binding ShowNotElevatedWarning, Converter={StaticResource BoolToVis}}" />
+
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Privilege level" />
+            <Border Style="{StaticResource CardStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="User" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding UserName}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Elevated" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding ElevationText}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Integrity level" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding IntegrityLevel}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Quarantine and recovery -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Quarantine and recovery" />
+            <ui:InfoBar Title="Could not read safety information" Message="{Binding SnapshotError}"
+                        Severity="Error" IsOpen="True" IsClosable="False" Margin="0,0,0,12"
+                        Visibility="{Binding SnapshotError, Converter={StaticResource NullToCollapsed}}" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Style="{StaticResource StatTileStyle}" MinHeight="96" Margin="0,0,6,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Quarantined items" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding QuarantineItems}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding QuarantineBytes}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource StatTileStyle}" MinHeight="96" Margin="6,0,6,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Expired quarantine items" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding ExpiredItems}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="Flagged only; never purged automatically" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource StatTileStyle}" MinHeight="96" Margin="6,0,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Items needing attention" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding NeedingAttention}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="Review these before anything else" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Style="{StaticResource CardStyle}" Margin="0,12,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Operations pending recovery" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding PendingRecovery}" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,2" Text="Last scan" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding LastScan}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Quarantine location" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding QuarantineLocation}" />
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,12,0,2" Text="Retention" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RetentionText}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Capability -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Handle-operation capability" />
+            <Border Style="{StaticResource CardStyle}">
+                <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding CapabilityStatus}" />
+            </Border>
+
+            <!-- Exclusions -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Cleanup exclusions" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Text="No exclusions set. You can add them in Settings."
+                               Visibility="{Binding HasNoExclusions, Converter={StaticResource BoolToVis}}" />
+                    <ItemsControl ItemsSource="{Binding Exclusions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,2,0,2" Text="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,8,0,0" Text="Exclusions are edited in Settings." />
+                </StackPanel>
+            </Border>
+
+            <!-- Irreversible operations -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Irreversible operations" />
+            <Border Style="{StaticResource WarningCardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
+                               Text="Permanent purge of quarantined files cannot be undone." />
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,8,0,0"
+                               Text="Purging always needs your explicit confirmation. ClearPath never purges anything automatically, including expired quarantine items." />
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,8,0,0"
+                               Text="Emptying the Recycle Bin is not available in this version." />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

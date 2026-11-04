@@ -1,0 +1,149 @@
+<Page x:Class="ClearPath.App.Views.DashboardPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+      Title="Dashboard">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="{StaticResource Pad.Page}">
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PageTitleStyle}" Text="Dashboard" />
+                    <TextBlock Style="{StaticResource PageSubtitleStyle}"
+                               Text="A live overview of this PC. Every value is measured on your machine while this page is open." />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                    <ui:Button Content="Quick Scan" IsEnabled="False" Appearance="Primary"
+                               ToolTipService.ShowOnDisabled="True"
+                               ToolTip="Scanning engine arrives in milestone M3 (after safety design approval)" />
+                    <ui:Button Content="Deep Scan" IsEnabled="False" Margin="8,0,0,0"
+                               ToolTipService.ShowOnDisabled="True"
+                               ToolTip="Not available in this version" />
+                </StackPanel>
+            </Grid>
+            <TextBlock Style="{StaticResource CaptionStyle}" HorizontalAlignment="Right" Margin="0,8,0,0"
+                       Text="Quick Scan: scanning engine arrives in milestone M3 (after safety design approval). Deep Scan: not available in this version." />
+
+            <!-- Stat tiles -->
+            <Grid Margin="0,20,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource StatTileStyle}" Margin="0,0,6,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="CPU" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding CpuValue}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding CpuDetail}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource StatTileStyle}" Margin="6,0,6,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Memory (load)" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding MemoryValue}" />
+                        <ProgressBar Style="{StaticResource ProgressStyle}" Value="{Binding MemoryLoadPercent, Mode=OneWay}"
+                                     Visibility="{Binding MemoryAvailable, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding MemoryDetail}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource StatTileStyle}" Margin="6,0,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Recycle Bin (view only)" />
+                        <TextBlock Style="{StaticResource StatValueStyle}" Text="{Binding RecycleBinValue}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding RecycleBinDetail}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- CPU chart + system info -->
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0,0,6,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="CPU usage this session" />
+                        <Grid Height="190" Margin="0,8,0,0">
+                            <lvc:CartesianChart Series="{Binding CpuSeries}"
+                                                XAxes="{Binding CpuXAxes}"
+                                                YAxes="{Binding CpuYAxes}"
+                                                Visibility="{Binding HasCpuSamples, Converter={StaticResource BoolToVis}}" />
+                            <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding CpuChartStatus}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Visibility="{Binding HasCpuSamples, Converter={StaticResource InverseBoolToVis}}" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding CpuChartStatus}"
+                                   Visibility="{Binding HasCpuSamples, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource CardStyle}" Margin="6,0,0,0">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Text="Operating system" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" Margin="0,6,0,0" Text="{Binding OsName}" />
+                        <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding OsDetail}" />
+
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Margin="0,16,0,0" Text="Last scan" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,2,0,0" Text="{Binding LastScanText}" />
+
+                        <TextBlock Style="{StaticResource StatLabelStyle}" Margin="0,12,0,0" Text="Last cleanup" />
+                        <TextBlock Style="{StaticResource BodyTextStyle}" Margin="0,2,0,0" Text="{Binding LastCleanupText}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Drives -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Drives" />
+            <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding DrivesMessage}"
+                       Visibility="{Binding HasDrivesMessage, Converter={StaticResource BoolToVis}}" />
+            <ItemsControl ItemsSource="{Binding Drives}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Margin="{StaticResource Margin.Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" Text="{Binding Title}" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CaptionStyle}" Text="{Binding Detail}" />
+                                </Grid>
+                                <ProgressBar Style="{StaticResource ProgressStyle}" Value="{Binding UsedPercent, Mode=OneWay}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding UsedPercentText}" />
+                                    <TextBlock Grid.Column="1" Style="{StaticResource CaptionStyle}">
+                                        <Run Text="Used " /><Run Text="{Binding UsedText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="2" Style="{StaticResource CaptionStyle}">
+                                        <Run Text="Free " /><Run Text="{Binding FreeText, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="3" Style="{StaticResource CaptionStyle}">
+                                        <Run Text="Total " /><Run Text="{Binding TotalText, Mode=OneWay}" />
+                                    </TextBlock>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</Page>
