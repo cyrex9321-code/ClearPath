@@ -26,7 +26,7 @@ Returns Recycle Bin size and item count via `SHQueryRecycleBin`. Query only; the
 Reports whether the process token is elevated, the user identity, and whether specific privileges (for example `SeSecurityPrivilege`) are enabled. Read-only. Used by Safety Center and by the cross-volume SACL decision.
 
 ### ISettingsStore
-Loads and saves the settings document ([07](07-data-config-design.md)): theme, exclusions, retentionDays, quarantineLocation, logFolder. Validates on load (invalid => defaults + log). Saves atomically. Raises a change notification. Writes only inside the ClearPath data directory.
+Loads and saves the settings document ([07](07-data-config-design.md)): Theme, Exclusions, QuarantineRetentionDays (default 30), QuarantineLocation. Validates on load (invalid => defaults + log). Saves atomically. Raises a change notification. Writes only inside the ClearPath data directory.
 
 ### IHistoryRepository
 Read/write access to operations, items, scans and volume measurements in SQLite. Provides paged item queries (full lists are never held in memory), last scan/cleanup lookup (or "none"), and expired-item queries. Does not itself mutate user files.

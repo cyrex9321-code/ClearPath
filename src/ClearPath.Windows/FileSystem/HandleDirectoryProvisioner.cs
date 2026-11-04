@@ -50,6 +50,14 @@ public sealed class HandleDirectoryProvisioner(ILogger<HandleDirectoryProvisione
             var final = HandleQueries.GetFinalPath(current);
             if (!LocalPath.TryParseHandlePath(final, out var resolved, out var error) || !resolved!.Equals(directory))
             {
+                if (IsPackageVirtualizedPath(final))
+                {
+                    // Fail closed, but say why: the process inherited MSIX file-system virtualization from a packaged parent app.
+                    throw new UnsafeDirectoryException(
+                        $"Directory '{directory}' was redirected by Windows app-package file-system virtualization to '{final}'. " +
+                        "This happens when ClearPath is started from inside a packaged (MSIX) app. Start ClearPath directly, e.g. from File Explorer or the Start menu.");
+                }
+
                 throw new UnsafeDirectoryException($"Directory '{directory}' resolved to unexpected path '{final}' ({error ?? "mismatch"}).");
             }
         }
@@ -58,6 +66,11 @@ public sealed class HandleDirectoryProvisioner(ILogger<HandleDirectoryProvisione
             for (var i = held.Count - 1; i >= 0; i--) held[i].Dispose();
         }
     }
+
+    /// <summary>Recognises the MSIX redirection target ...\AppData\Local\Packages\&lt;family&gt;\LocalCache\....</summary>
+    internal static bool IsPackageVirtualizedPath(string finalPath) =>
+        finalPath.Contains(@"\AppData\Local\Packages\", StringComparison.OrdinalIgnoreCase) &&
+        finalPath.Contains(@"\LocalCache\", StringComparison.OrdinalIgnoreCase);
 
     private static SafeFileHandle OpenVolumeRoot(LocalPath directory)
     {

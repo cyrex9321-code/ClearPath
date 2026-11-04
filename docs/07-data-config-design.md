@@ -6,8 +6,9 @@ All ClearPath-owned data lives under `%LOCALAPPDATA%\ClearPath`. This tree is on
 
 ```
 %LOCALAPPDATA%\ClearPath\
-  data\            settings.json, clearpath.db (+ -wal, -shm)
-  logs\            Serilog rolling files (folder configurable: logFolder)
+  settings.json    user settings (Infrastructure)
+  clearpath.db     journal database (+ -wal, -shm)
+  logs\            Serilog rolling daily files, 14 retained
   Quarantine\      default quarantine root (configurable: quarantineLocation)
     <opId>\        per-operation directory
       <seq>.bin            quarantined file
@@ -18,40 +19,42 @@ All ClearPath-owned data lives under `%LOCALAPPDATA%\ClearPath`. This tree is on
 
 | Path | Writer | Notes |
 |---|---|---|
-| `data\` | Infrastructure | Settings JSON, SQLite DB |
+| `settings.json`, `clearpath.db` | Infrastructure | Settings JSON, SQLite journal |
 | `logs\` | Infrastructure (Serilog) | No file contents or secrets logged |
 | `Quarantine\` | Backup (via `QuarantineRootGuard`) | Default; alternative only by explicit user choice, FIXED drive, never inside a rule root |
 | `selftest\` | Capability self-test | Created/removed by the test; never touches user files |
 
-Every directory/file ClearPath creates is created relative to a validated parent handle (no check-then-create) - see [11](11-security-assessment.md).
+Directories: `ClearPath\` and `logs\` are provisioned at startup by `HandleDirectoryProvisioner` (walk from the volume root with handle-relative `NtCreateFile`, reject any reparse point, `FILE_CREATE` for missing components, final-path check; no path-based fallback). Quarantine/restore directories and artifacts (M3) are created the same way, and files relative to a validated parent handle (`FILE_CREATE`).
+
+**Known limitation (Infrastructure-owned files):** `settings.json`, `clearpath.db` (+ WAL/SHM) and log files are created by path (System.IO / SQLite / Serilog) inside the handle-validated `ClearPath\` directory. They are ClearPath's own files, not user data; this is recorded for the M2 review – see [11](11-security-assessment.md).
 
 ## 2. Settings JSON
 
-File: `%LOCALAPPDATA%\ClearPath\data\settings.json`. Written atomically (temp file + handle rename). Settings are validated on load; invalid values fall back to defaults and are logged.
+File: `%LOCALAPPDATA%\ClearPath\settings.json`. Written atomically (write-through temp file + `File.Replace`; Infrastructure-owned file, not user data). A corrupt file falls back to defaults and is preserved as `settings.json.corrupt-<utc>` on the next save, never deleted. Settings are validated on load; invalid values fall back to defaults and are logged.
 
 ```json
 {
-  "theme": "dark",
-  "exclusions": [],
-  "retentionDays": 0,
-  "quarantineLocation": null,
-  "logFolder": null
+  "SchemaVersion": 1,
+  "Theme": "System",
+  "Exclusions": [],
+  "QuarantineRetentionDays": 30,
+  "QuarantineLocation": null
 }
 ```
 
 | Key | Type | Meaning |
 |---|---|---|
-| `theme` | `"dark"` \| `"light"` | Persisted UI theme |
-| `exclusions` | string[] | Absolute paths PathGuard must never touch (external-path validation applies) |
-| `retentionDays` | integer | Days after which quarantined items get an **Expired** badge; never triggers purge |
-| `quarantineLocation` | string \| null | `null` = default. Otherwise validated: FIXED drive, not UNC/removable/network, not inside a rule root, not overlapping data dirs |
-| `logFolder` | string \| null | `null` = default `logs\`. Settings shows a link to open the folder |
+| `SchemaVersion` | integer | Settings document version (1) |
+| `Theme` | `"System"` \| `"Light"` \| `"Dark"` | Persisted UI theme |
+| `Exclusions` | string[] | Absolute paths PathGuard must never touch (external-path validation applies) |
+| `QuarantineRetentionDays` | integer (1–3650, default **30**) | Days after which quarantined items get an **Expired** badge; never triggers purge |
+| `QuarantineLocation` | string \| null | `null` = default. Otherwise validated: FIXED drive, not UNC/removable/network, not inside a rule root, not overlapping data dirs |
 
-Notes: the JSON above is a shape example; the placeholder `retentionDays` value (0) is **not** a chosen default. The actual default retention period is an open decision to be fixed in M1 (the plan specifies no number). `settings_kv` in SQLite may hold internal state (for example active manifest revision pointers) and is separate from user settings JSON.
+Notes: the retention default of 30 days was set by the lead in M1. The log folder is fixed (`logs\`) in the MVP. `settings_kv` in SQLite may hold internal state (for example active manifest revision pointers) and is separate from user settings JSON.
 
 ## 3. SQLite database
 
-File: `data\clearpath.db`. Pragmas: `journal_mode=WAL`, `synchronous=FULL`. SQLite is the **sole source of truth**; manifests never override it.
+File: `%LOCALAPPDATA%\ClearPath\clearpath.db`. Schema versioned with `PRAGMA user_version` (v1 in M1; M2 changes ship as new migrations, never edits to old ones). Pragmas: `journal_mode=WAL`, `synchronous=FULL`. SQLite is the **sole source of truth**; manifests never override it.
 
 State is written **before and after** every filesystem step.
 

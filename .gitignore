@@ -488,3 +488,5 @@ CLAUDE-*.md
 *.db-wal
 *.db-shm
 artifacts/
+
+.claude/
