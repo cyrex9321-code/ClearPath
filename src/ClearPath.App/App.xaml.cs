@@ -116,10 +116,13 @@ public partial class App : Application
         _logger?.LogCritical(ex, "ClearPath failed to start");
 
         var unsafeDirectory = FindUnsafeDirectory(ex);
+        var virtualized = unsafeDirectory?.Message.Contains("virtualization", StringComparison.OrdinalIgnoreCase) == true;
         var message = unsafeDirectory is not null
             ? "ClearPath did not start because its data folder is not safe to use:\n\n"
               + unsafeDirectory.Message
-              + "\n\nNothing was changed. Remove any junction or symbolic link in the ClearPath data location (under %LOCALAPPDATA%) and start ClearPath again."
+              + (virtualized
+                  ? "\n\nNothing was changed."
+                  : "\n\nNothing was changed. Remove any junction or symbolic link in the ClearPath data location (under %LOCALAPPDATA%) and start ClearPath again.")
             : "ClearPath could not start:\n\n" + ex.Message + "\n\nSee the log folder under %LOCALAPPDATA%\\ClearPath\\logs for details.";
 
         MessageBox.Show(message, AppTitle, MessageBoxButton.OK, MessageBoxImage.Error);
