@@ -1,0 +1,73 @@
+<Page x:Class="ClearPath.App.Views.HistoryPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="History">
+    <Grid Margin="{StaticResource Pad.Page}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel>
+            <TextBlock Style="{StaticResource PageTitleStyle}" Text="History" />
+            <TextBlock Style="{StaticResource PageSubtitleStyle}" Text="The most recent operations recorded by ClearPath (up to 100)." />
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,16,0,0" Padding="0">
+            <Grid>
+                <DataGrid ItemsSource="{Binding Rows}"
+                          AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          SelectionMode="Single" Background="Transparent" BorderThickness="0"
+                          Visibility="{Binding HasRows, Converter={StaticResource BoolToVis}}">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="150" />
+                        <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="110" />
+                        <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" Width="110" />
+                        <DataGridTextColumn Header="State" Binding="{Binding State}" Width="130" />
+                        <DataGridTextColumn Header="Items" Binding="{Binding Items}" Width="80">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Needing attention" Binding="{Binding NeedingAttention}" Width="140">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Logical size" Binding="{Binding Size}" Width="*">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextAlignment" Value="Right" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Style="{StaticResource BodyTextStyle}" FontSize="16" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" Text="No operations recorded yet" />
+                    <TextBlock Style="{StaticResource CaptionStyle}" HorizontalAlignment="Center" Margin="0,6,0,0"
+                               Text="Cleanups, restores and purges will appear here once they exist." />
+                </StackPanel>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24"
+                            Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Style="{StaticResource CaptionStyle}" Text="Loading…" />
+                </StackPanel>
+
+                <ui:InfoBar Title="Could not read history" Message="{Binding Error}"
+                            Severity="Error" IsOpen="True" IsClosable="False"
+                            VerticalAlignment="Top" Margin="16"
+                            Visibility="{Binding Error, Converter={StaticResource NullToCollapsed}}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Page>
