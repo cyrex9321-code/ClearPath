@@ -1,8 +1,13 @@
+using ClearPath.Backup;
+using ClearPath.Cleaning;
 using ClearPath.Core.Abstractions;
+using ClearPath.Core.Cleaning;
+using ClearPath.Core.FileSystem;
 using ClearPath.Core.Models;
 using ClearPath.Infrastructure;
 using ClearPath.Infrastructure.Database;
 using ClearPath.Infrastructure.Logging;
+using ClearPath.Scanning;
 using ClearPath.Windows.FileSystem;
 using ClearPath.Windows.Metrics;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,8 +59,28 @@ public static class ClearPathServices
         services.AddSingleton<SqliteConnectionFactory>();
         services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
         services.AddSingleton<IHistoryRepository, SqliteHistoryRepository>();
+        services.AddSingleton<SqliteScanStore>();
+        services.AddSingleton<IScanStore>(sp => sp.GetRequiredService<SqliteScanStore>());
+        services.AddSingleton<IScanWriter>(sp => sp.GetRequiredService<SqliteScanStore>());
+        services.AddSingleton<IOperationJournal, SqliteOperationJournal>();
 
-        // Scanning, Cleaning and Backup are registered in M3 after the M2 safety design is approved.
+        // M3: native handle-based filesystem access (docs/15 §3, §5)
+        services.AddSingleton<CapabilitySettings>();
+        services.AddSingleton<ICapabilitySettings>(sp => sp.GetRequiredService<CapabilitySettings>());
+        services.AddSingleton<IFileSystemReader, FileSystemReader>();
+        services.AddSingleton<IFileSystemWriter, FileSystemWriter>();
+        services.AddSingleton<ICapabilityProbe, CapabilityProbe>();
+
+        // Scanning (read-only)
+        services.AddSingleton<IRuleCatalog, RuleCatalog>();
+        services.AddSingleton<IScanner, Scanner>();
+
+        // Cleaning (sole authority over user source files) and Backup (quarantine storage only)
+        services.AddSingleton<IPathGuard, PathGuard>();
+        services.AddSingleton<IQuarantineStore, QuarantineStore>();
+        services.AddSingleton<ICleaner, Cleaner>();
+        services.AddSingleton<IRecoveryService, RecoveryService>();
+
         return services;
     }
 

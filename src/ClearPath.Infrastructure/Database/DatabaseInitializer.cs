@@ -9,7 +9,7 @@ namespace ClearPath.Infrastructure.Database;
 /// </summary>
 public sealed class DatabaseInitializer(SqliteConnectionFactory factory, ILogger<DatabaseInitializer> logger) : IDatabaseInitializer
 {
-    public const int LatestVersion = 1;
+    public const int LatestVersion = 2;
 
     private static readonly string[] Migrations =
     [
@@ -89,6 +89,56 @@ public sealed class DatabaseInitializer(SqliteConnectionFactory factory, ILogger
         CREATE TABLE settings_kv (
             key             TEXT PRIMARY KEY,
             value           TEXT NOT NULL
+        );
+        """,
+        // v2 (docs/15 §4): root snapshots, relative-path scan items, orthogonal attention state, purge challenges.
+        """
+        CREATE TABLE root_snapshots (
+            id                  TEXT PRIMARY KEY,
+            rule_id             TEXT NOT NULL,
+            canonical_path      TEXT NOT NULL,
+            volume_serial       INTEGER NOT NULL,
+            root_file_id_hex    TEXT NOT NULL,
+            captured_utc        TEXT NOT NULL
+        );
+        ALTER TABLE scan_items ADD COLUMN root_snapshot_id TEXT NULL;
+        ALTER TABLE scan_items ADD COLUMN category_id TEXT NULL;
+        ALTER TABLE scan_items ADD COLUMN relative_components_json TEXT NULL;
+        ALTER TABLE scan_items ADD COLUMN display_path TEXT NULL;
+        ALTER TABLE scan_items ADD COLUMN reparse_tag INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE scan_items ADD COLUMN link_count INTEGER NOT NULL DEFAULT 1;
+        ALTER TABLE scan_items ADD COLUMN delete_pending INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE scan_items ADD COLUMN creation_time INTEGER NULL;
+        ALTER TABLE scan_items ADD COLUMN last_access_time INTEGER NULL;
+        ALTER TABLE scan_items ADD COLUMN change_time INTEGER NULL;
+        ALTER TABLE scan_items ADD COLUMN file_id_hex TEXT NULL;
+        ALTER TABLE scan_items ADD COLUMN cross_volume INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX ix_scan_items_category ON scan_items(scan_id, category_id);
+
+        ALTER TABLE operations ADD COLUMN source_operation_id TEXT NULL;
+        ALTER TABLE operations ADD COLUMN challenge_nonce TEXT NULL;
+
+        ALTER TABLE operation_items ADD COLUMN attention_kind TEXT NOT NULL DEFAULT 'None';
+        ALTER TABLE operation_items ADD COLUMN attention_reason TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN attention_since_utc TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0;
+        -- The legacy *_file_id128 BLOB columns are never populated (placeholder only); the 128-bit file ID
+        -- component of each identity is stored here as hex text instead, matching scan_items.file_id_hex.
+        ALTER TABLE operation_items ADD COLUMN src_file_id_hex TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN q_file_id_hex TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN r_file_id_hex TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN root_snapshot_id TEXT NULL;
+        ALTER TABLE operation_items ADD COLUMN source_relative_json TEXT NULL;
+
+        CREATE TABLE purge_challenges (
+            nonce               TEXT PRIMARY KEY,
+            source_operation_id TEXT NOT NULL,
+            item_seqs_json      TEXT NOT NULL,
+            logical_bytes       INTEGER NOT NULL,
+            required_text       TEXT NOT NULL,
+            created_utc         TEXT NOT NULL,
+            expires_utc         TEXT NOT NULL,
+            used_utc            TEXT NULL
         );
         """,
     ];

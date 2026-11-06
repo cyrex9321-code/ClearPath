@@ -94,8 +94,7 @@ public sealed class DatabaseInitializerTests : IDisposable
     public async Task Sets_user_version_to_latest()
     {
         await _db.Initializer.InitializeAsync(Ct);
-        DatabaseInitializer.LatestVersion.Should().Be(1);
-        (await _db.ScalarAsync<int>("PRAGMA user_version")).Should().Be(1);
+        (await _db.ScalarAsync<int>("PRAGMA user_version")).Should().Be(DatabaseInitializer.LatestVersion);
     }
 
     [Fact]
@@ -111,7 +110,7 @@ public sealed class DatabaseInitializerTests : IDisposable
         };
         await again.Should().NotThrowAsync();
 
-        (await _db.ScalarAsync<int>("PRAGMA user_version")).Should().Be(1);
+        (await _db.ScalarAsync<int>("PRAGMA user_version")).Should().Be(DatabaseInitializer.LatestVersion);
         (await _db.ScalarAsync<int>("SELECT COUNT(*) FROM scans")).Should().Be(1);
     }
 
