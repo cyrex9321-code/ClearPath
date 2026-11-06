@@ -21,6 +21,7 @@ public sealed class Cleaner(
     IScanStore scanStore,
     IRuleCatalog ruleCatalog,
     ICapabilityGate capabilityGate,
+    IRecoveryService recovery,
     ILogger<Cleaner> logger) : ICleaner
 {
     private void RequireCapabilities()
@@ -36,7 +37,7 @@ public sealed class Cleaner(
     /// exception) the operation is completed in the journal, which releases the lock - otherwise a single
     /// cancel would block every later quarantine, restore and purge (review H2).
     /// </summary>
-    private async Task<T> RunOperationAsync<T>(Guid operationId, Func<Task<T>> body)
+    private async Task<T> RunOperationAsync<T>(Guid operationId, Func<Task<T>> body, Guid? itemOperationId = null)
     {
         try
         {
@@ -45,7 +46,17 @@ public sealed class Cleaner(
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Operation {Op} ended abnormally; releasing the lock", operationId);
+            logger.LogWarning(ex, "Operation {Op} ended abnormally; reconciling its items, then releasing the lock", operationId);
+            // Reconcile the items this operation was working on right now, instead of leaving them in an intermediate
+            // state until the next startup (docs/15 §8.2). Recovery never takes the lock and never deletes user data.
+            try
+            {
+                await recovery.ReconcileAsync(itemOperationId ?? operationId, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception rex)
+            {
+                logger.LogError(rex, "In-session reconciliation failed for operation {Op}; startup recovery will retry", operationId);
+            }
             await journal.CompleteOperationAsync(operationId, ex is OperationCanceledException ? "Cancelled" : "Failed", CancellationToken.None).ConfigureAwait(false);
             throw;
         }
@@ -238,7 +249,7 @@ public sealed class Cleaner(
         // source operation, which is where recovery looks for the quarantine folder. Items are read UNDER the lock
         // so a concurrent operation cannot change them between the read and the action (review L-A).
         var restoreOp = await journal.BeginOperationAsync("Restore", "Restore", operationId, null, CancellationToken.None).ConfigureAwait(false);
-        return await RunOperationAsync(restoreOp, () => RestoreBodyAsync(operationId, restoreOp, itemSeqs, onConflict, cancellationToken)).ConfigureAwait(false);
+        return await RunOperationAsync(restoreOp, () => RestoreBodyAsync(operationId, restoreOp, itemSeqs, onConflict, cancellationToken), operationId).ConfigureAwait(false);
     }
 
     private async Task<CleanupResult> RestoreBodyAsync(Guid operationId, Guid restoreOp, IReadOnlyList<long> itemSeqs, RestoreConflictChoice onConflict, CancellationToken cancellationToken)
@@ -387,7 +398,7 @@ public sealed class Cleaner(
         // lock (review L-A), so a restore that completes in the meantime cannot be overwritten with "purging".
         var purgeOpId = await journal.BeginOperationAsync("Purge", "Purge", challenge.SourceOperationId,
             $$"""{"nonce":"{{challenge.Nonce}}","text":"{{typedConfirmation}}","atUtc":"{{DateTimeOffset.UtcNow:O}}"}""", CancellationToken.None).ConfigureAwait(false);
-        return await RunOperationAsync(purgeOpId, () => PurgeBodyAsync(purgeOpId, challenge.SourceOperationId, challenge.ItemSeqs, cancellationToken)).ConfigureAwait(false);
+        return await RunOperationAsync(purgeOpId, () => PurgeBodyAsync(purgeOpId, challenge.SourceOperationId, challenge.ItemSeqs, cancellationToken), challenge.SourceOperationId).ConfigureAwait(false);
     }
 
     private async Task<PurgeResult> PurgeBodyAsync(Guid purgeOpId, Guid sourceOpId, IReadOnlyList<long> itemSeqs, CancellationToken cancellationToken)
