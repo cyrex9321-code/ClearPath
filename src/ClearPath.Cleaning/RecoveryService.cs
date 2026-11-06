@@ -14,6 +14,9 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
 {
     public async Task<RecoveryReport> ReconcileAsync(Guid? operationId, CancellationToken cancellationToken)
     {
+        // Startup only (the caller holds the single-instance mutex): any active-operation lock is stale, so clear it
+        // before reconciling. Otherwise one crash would block every later operation (review H2 / §11.9).
+        if (operationId is null) await journal.ReleaseStaleLockAsync(cancellationToken).ConfigureAwait(false);
         var items = await journal.GetNonTerminalOrAttentionItemsAsync(cancellationToken).ConfigureAwait(false);
         if (operationId is { } id) items = [.. items.Where(i => i.OperationId == id)];
 
@@ -44,7 +47,7 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
                         case ReconcileOutcome.Attention: stillAttention++; break;
                     }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
                 {
                     logger.LogWarning(ex, "Recovery could not examine operation {Op} item {Seq}", item.OperationId, item.Seq);
                     await journal.SetAttentionAsync(item.OperationId, item.Seq, AttentionKind.Retryable, "Could not be examined during recovery; will retry.", CancellationToken.None).ConfigureAwait(false);
@@ -149,8 +152,9 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
     {
         if (opDir is null || item.Facts.QuarantineIdentity is null)
         {
-            await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Purged, item.Facts, CancellationToken.None).ConfigureAwait(false);
-            return ReconcileOutcome.Resolved; // observed-absent-only: no handle to check, treat as already gone
+            // No evidence either way (folder or identity missing): never record "purged" without observing it (review H4).
+            await SetAttentionAsync(item, AttentionKind.Retryable, "The quarantine record for this purge could not be found; it will be re-checked.").ConfigureAwait(false);
+            return ReconcileOutcome.Retry;
         }
         var outcome = reader.ProbeName(opDir, $"{item.Seq}.bin", item.Facts.QuarantineIdentity);
         switch (outcome)

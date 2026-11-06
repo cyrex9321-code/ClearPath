@@ -90,13 +90,30 @@ public sealed class ResolvedRoot(IHeldDirectoryChain chain, RootSnapshot snapsho
     public void Dispose() => Chain.Dispose();
 }
 
-public sealed class ValidatedTarget(IDirectoryHandle parentDirectory, IFileHandle file, FileSnapshot snapshot, string fileName) : IDisposable
+/// <summary>
+/// A validated, held target. Owns the whole directory chain (root to parent) and the open file handle, so the
+/// parent handle stays valid for the rest of the operation (review finding H1).
+/// </summary>
+public sealed class ValidatedTarget(IDirectoryHandle parentDirectory, IReadOnlyList<IDirectoryHandle> ownedAncestors, IFileHandle file, FileSnapshot snapshot, string fileName) : IDisposable
 {
     public IDirectoryHandle ParentDirectory { get; } = parentDirectory;
     public IFileHandle File { get; } = file;
     public FileSnapshot Snapshot { get; } = snapshot;
     public string FileName { get; } = fileName;
-    public void Dispose() => File.Dispose();
+    private readonly IReadOnlyList<IDirectoryHandle> _owned = ownedAncestors;
+
+    /// <summary>Disposes the file and the ancestor handles this target opened. The parent handle itself is owned by the caller's ResolvedRoot.</summary>
+    public void Dispose()
+    {
+        File.Dispose();
+        for (var i = _owned.Count - 1; i >= 0; i--) _owned[i].Dispose();
+    }
+}
+
+/// <summary>Startup safety gate (docs/15 §11.7): quarantine, restore and purge are refused until the self-test passes.</summary>
+public interface ICapabilityGate
+{
+    bool OperationsAllowed { get; }
 }
 
 public interface IPathGuard
@@ -152,7 +169,7 @@ public interface IQuarantineStore
     IQuarantineDirectory? OpenOperationDirectory(QuarantineRoot root, Guid operationId);
     int WriteManifest(IQuarantineDirectory opDirectory, int revision, ReadOnlySpan<byte> json);
     IFileHandle? OpenQuarantined(IQuarantineDirectory opDirectory, long seq);
-    MutationResult PurgeItem(IQuarantineDirectory opDirectory, long seq, FileIdentity expected);
+    MutationResult PurgeItem(IQuarantineDirectory opDirectory, long seq, FileIdentity expected, string expectedSha256);
 }
 
 public sealed class QuarantineRoot(IHeldDirectoryChain chain) : IDisposable

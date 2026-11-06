@@ -49,7 +49,7 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
             var snapshot = new RootSnapshot(Guid.NewGuid(), rule.Id, chain.CanonicalPath, chain.VolumeSerial, chain.Leaf.Identity);
             return GuardResult<ResolvedRoot>.Success(new ResolvedRoot(chain, snapshot));
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
         {
             logger.LogWarning(ex, "Rule {RuleId} root could not be resolved", rule.Id);
             return GuardResult<ResolvedRoot>.Reject(SkipReason.AccessDenied, ex.Message);
@@ -76,7 +76,7 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
             }
             return GuardResult<ResolvedRoot>.Success(new ResolvedRoot(chain, snapshot));
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
         {
             return GuardResult<ResolvedRoot>.Reject(SkipReason.AccessDenied, ex.Message);
         }
@@ -142,10 +142,11 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
 
             // Ancestor handles are no longer needed once the file itself is held; the file's open handle
             // (share-none, once mutation begins) is what protects it from here on.
-            DisposeAll(opened);
-            return GuardResult<ValidatedTarget>.Success(new ValidatedTarget(current, file, snapshot, fileName));
+            // Ancestors stay open: they belong to the returned target and are released by ValidatedTarget.Dispose (review H1).
+            var parent = opened.Count == 0 ? root.Chain.Leaf : opened[^1];
+            return GuardResult<ValidatedTarget>.Success(new ValidatedTarget(parent, opened, file, snapshot, fileName));
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
         {
             DisposeAll(opened);
             return GuardResult<ValidatedTarget>.Reject(SkipReason.AccessDenied, ex.Message);

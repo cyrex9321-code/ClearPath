@@ -98,7 +98,7 @@ public sealed class QuarantineStoreTests : IAsyncLifetime
         using var opDir = Store.CreateOperationDirectory(root, Guid.NewGuid());
         using (var f = Writer.CreateChildFile(opDir, "5.bin")!) Writer.WriteAllAndFlush(f, "data"u8);
 
-        var result = Store.PurgeItem(opDir, 5, new FileIdentity(999, 999)); // deliberately wrong identity
+        var result = Store.PurgeItem(opDir, 5, new FileIdentity(999, 999), Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("data"u8))); // deliberately wrong identity
 
         result.Outcome.Should().Be(MutationOutcome.Failed);
         using var probe = Reader.OpenChildFileForRead(opDir, "5.bin");
@@ -117,7 +117,7 @@ public sealed class QuarantineStoreTests : IAsyncLifetime
             identity = f.Identity;
         }
 
-        var result = Store.PurgeItem(opDir, 7, identity);
+        var result = Store.PurgeItem(opDir, 7, identity, Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData("data"u8)));
 
         result.Outcome.Should().Be(MutationOutcome.Success);
         Reader.ProbeName(opDir, "7.bin", null).Should().Be(ProbeOutcome.Absent);

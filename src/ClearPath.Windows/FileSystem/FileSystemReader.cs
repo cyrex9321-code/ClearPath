@@ -232,7 +232,8 @@ public sealed class FileSystemReader : IFileSystemReader
         {
             if (status == NativeMethods.STATUS_DELETE_PENDING) return ProbeOutcome.DeletePending;
             if (status is NativeMethods.STATUS_OBJECT_NAME_NOT_FOUND or NativeMethods.STATUS_OBJECT_PATH_NOT_FOUND) return ProbeOutcome.Absent;
-            if (status != 0) return ProbeOutcome.Absent; // access-denied etc.: treat as unverifiable-absent; caller should retry
+            if (status == NativeMethods.STATUS_OBJECT_NAME_NOT_FOUND || status == NativeMethods.STATUS_OBJECT_PATH_NOT_FOUND) return ProbeOutcome.Absent;
+            if (status != 0) return ProbeOutcome.Unverifiable; // access denied, sharing violation, etc.: NOT evidence of absence (review M5)
             var (vs, id) = HandleQueries.GetFileId(handle!);
             var actual = new FileIdentity(vs, id);
             return expected is { } e && e.Equals(actual) ? ProbeOutcome.SameIdentity : ProbeOutcome.OtherIdentity;

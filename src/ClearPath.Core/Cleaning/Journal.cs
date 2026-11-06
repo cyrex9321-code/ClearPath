@@ -54,6 +54,9 @@ public interface IOperationJournal
 
     Task<IReadOnlyList<JournalItem>> GetItemsAsync(Guid operationId, CancellationToken cancellationToken);
 
+    /// <summary>Clears an active-operation lock left behind by a crash or exit. Only call while holding the single-instance mutex, at startup.</summary>
+    Task ReleaseStaleLockAsync(CancellationToken cancellationToken);
+
     /// <summary>Creates and persists a single-use purge challenge.</summary>
     Task SaveChallengeAsync(PurgeChallenge challenge, CancellationToken cancellationToken);
 

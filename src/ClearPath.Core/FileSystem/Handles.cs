@@ -16,7 +16,7 @@ public sealed record FileSnapshot(
     bool DeletePending,
     FileTimes Times);
 
-public enum ProbeOutcome { Absent, SameIdentity, OtherIdentity, DeletePending }
+public enum ProbeOutcome { Absent, SameIdentity, OtherIdentity, DeletePending, Unverifiable }
 
 public sealed record VolumeFacts(ulong VolumeSerial, string FileSystemName, bool IsFixed, long FreeBytes, long TotalBytes);
 

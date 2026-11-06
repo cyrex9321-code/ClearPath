@@ -70,6 +70,7 @@ public static class ClearPathServices
         services.AddSingleton<IFileSystemReader, FileSystemReader>();
         services.AddSingleton<IFileSystemWriter, FileSystemWriter>();
         services.AddSingleton<ICapabilityProbe, CapabilityProbe>();
+        services.AddSingleton<ICapabilityGate>(sp => sp.GetRequiredService<CapabilitySettings>());
 
         // Scanning (read-only)
         services.AddSingleton<IRuleCatalog, RuleCatalog>();

@@ -40,7 +40,17 @@ internal static unsafe class NativeIo
 
                 var status = NativeMethods.NtCreateFile(
                     out var raw, access, &attributes, out _, null, 0, share, disposition, options, IntPtr.Zero, 0);
-                if (status == 0) handle = new SafeFileHandle(raw, ownsHandle: true);
+                if (status == 0)
+                {
+                    handle = new SafeFileHandle(raw, ownsHandle: true);
+                }
+                else if (status > 0)
+                {
+                    // Informational success (e.g. STATUS_OPLOCK_BREAK_IN_PROGRESS): the handle is not usable for
+                    // our share-none contract, so release it and report a sharing failure instead of leaking it.
+                    new SafeFileHandle(raw, ownsHandle: true).Dispose();
+                    status = NativeMethods.STATUS_SHARING_VIOLATION;
+                }
                 return status;
             }
         }
@@ -78,7 +88,8 @@ internal static unsafe class NativeIo
     internal static int Rename(SafeFileHandle file, SafeFileHandle targetDirectory, string newName, int infoClass)
     {
         var nameBytes = Encoding.Unicode.GetBytes(newName);
-        var size = 20 + nameBytes.Length;
+        // FILE_RENAME_INFORMATION is 24 bytes on x64 even for a one-character name; undersized buffers fail with INFO_LENGTH_MISMATCH.
+        var size = Math.Max(24, 20 + nameBytes.Length);
         var buffer = new byte[size];
         var addRef = false;
         try

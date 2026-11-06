@@ -95,25 +95,53 @@ public sealed class QuarantineStore(IFileSystemReader reader, IFileSystemWriter 
     public IFileHandle? OpenQuarantined(IQuarantineDirectory opDirectory, long seq) =>
         writer.OpenChildFileForMutation(opDirectory, $"{seq}.bin");
 
-    public MutationResult PurgeItem(IQuarantineDirectory opDirectory, long seq, FileIdentity expected)
+    public MutationResult PurgeItem(IQuarantineDirectory opDirectory, long seq, FileIdentity expected, string expectedSha256)
     {
         var name = $"{seq}.bin";
         var file = writer.OpenChildFileForMutation(opDirectory, name);
-        if (file is null) return new MutationResult(MutationOutcome.NotFound);
-        if (!file.Identity.Equals(expected))
+        if (file is null)
         {
-            file.Dispose();
-            return new MutationResult(MutationOutcome.Failed, "Identity mismatch: refusing to delete an unexpected file.");
+            // Absent, or unopenable right now. Only a positive NOT_FOUND probe counts as "already gone".
+            var probe = reader.ProbeName(opDirectory, name, expected);
+            return probe switch
+            {
+                ProbeOutcome.Absent => new MutationResult(MutationOutcome.NotFound),
+                ProbeOutcome.DeletePending => new MutationResult(MutationOutcome.DeletePending),
+                _ => new MutationResult(MutationOutcome.Locked, "Quarantined file could not be opened for verification."),
+            };
         }
-        var mark = writer.MarkForDelete(file);
-        file.Dispose();
-        if (mark.Outcome != MutationOutcome.Success) return mark;
+
+        using (file)
+        {
+            if (!file.Identity.Equals(expected))
+            {
+                return new MutationResult(MutationOutcome.Failed, "Identity mismatch: refusing to delete an unexpected file.");
+            }
+
+            // Verify BEFORE deleting (docs/15 §5.6, §7.3, review M4): exactly one name, and the bytes we are about to
+            // destroy are the bytes that were recorded. A hard link would otherwise leave data behind while we
+            // report it as verified-purged.
+            var snapshot = reader.Snapshot(file);
+            if (snapshot.LinkCount != 1)
+            {
+                return new MutationResult(MutationOutcome.Failed, "Refusing to purge: the file has more than one hard link.");
+            }
+            var hash = writer.HashSha256(file, CancellationToken.None);
+            if (!string.Equals(hash, expectedSha256, StringComparison.Ordinal))
+            {
+                return new MutationResult(MutationOutcome.Failed, "Refusing to purge: the quarantined content does not match its recorded hash.");
+            }
+
+            var mark = writer.MarkForDelete(file);
+            if (mark.Outcome != MutationOutcome.Success) return mark;
+        }
 
         var outcome = reader.ProbeName(opDirectory, name, expected);
         return outcome switch
         {
             ProbeOutcome.Absent => MutationResult.Ok,
             ProbeOutcome.DeletePending => new MutationResult(MutationOutcome.DeletePending),
+            ProbeOutcome.Unverifiable => new MutationResult(MutationOutcome.Locked, "Removal could not be verified."),
             _ => new MutationResult(MutationOutcome.Failed, "File still present after delete."),
         };
     }

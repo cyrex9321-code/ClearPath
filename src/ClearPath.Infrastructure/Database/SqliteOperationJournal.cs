@@ -191,6 +191,29 @@ public sealed class SqliteOperationJournal(SqliteConnectionFactory factory) : IO
         return await ReadJournalItemsAsync(cmd, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task ReleaseStaleLockAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await factory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var tx = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using (var mark = connection.CreateCommand())
+        {
+            mark.Transaction = (SqliteTransaction)tx;
+            mark.CommandText = """
+                UPDATE operations SET state='Interrupted', finished_utc=$now
+                WHERE id IN (SELECT op_id FROM active_operation) AND state='Running';
+                """;
+            mark.Parameters.AddWithValue("$now", SqlConvert.Time(DateTimeOffset.UtcNow));
+            await mark.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await using (var clear = connection.CreateCommand())
+        {
+            clear.Transaction = (SqliteTransaction)tx;
+            clear.CommandText = "DELETE FROM active_operation;";
+            await clear.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<JournalItem>> GetItemsAsync(Guid operationId, CancellationToken cancellationToken)
     {
         await using var connection = await factory.OpenAsync(cancellationToken).ConfigureAwait(false);

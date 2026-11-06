@@ -34,6 +34,46 @@ public sealed class CleanerQuarantineTests : IAsyncLifetime
         return (scan.ScanId, item);
     }
 
+    /// <summary>Regression for review finding H1: a file inside a subfolder used to fail on an already-disposed parent handle.</summary>
+    [Fact]
+    public async Task File_inside_a_subfolder_is_quarantined_regression_H1()
+    {
+        const string content = "nested-content";
+        var subDir = Path.Combine(_h.ScanRoot, "nested-sub");
+        Directory.CreateDirectory(subDir);
+        var path = Path.Combine(subDir, "deep.txt");
+        File.WriteAllText(path, content);
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-2));
+
+        var rule = _h.Services.GetRequiredService<ClearPath.Core.Cleaning.IRuleCatalog>().Rules.FirstOrDefault(r => r.Id == "q-rule")
+            ?? _h.AddRule("q-rule", [], TimeSpan.FromHours(24));
+        var scan = await Scanner.ScanAsync(new ScanRequest([rule.Id]), null, CancellationToken.None);
+        var items = await ScanStore.GetPageAsync(scan.ScanId, rule.CategoryId, 0, 1000, CancellationToken.None);
+        var item = items.Single(i => i.RelativeComponents.Count >= 2 && i.RelativeComponents[^1] == "deep.txt");
+
+        var result = await Cleaner.QuarantineAsync(new QuarantineRequest(scan.ScanId, [item.Seq]), null, CancellationToken.None);
+
+        result.FilesQuarantined.Should().Be(1, "a nested file must be quarantinable, not rejected by a closed handle");
+        File.Exists(path).Should().BeFalse("source must be gone after quarantine");
+    }
+
+    /// <summary>Regression for review finding H2: a cancelled operation must release the lock so later operations are not blocked.</summary>
+    [Fact]
+    public async Task Cancelled_quarantine_releases_the_operation_lock_regression_H2()
+    {
+        var (scanId, item) = await ScanOneAsync("lock-a.txt", "lock-content");
+        using (var cts = new CancellationTokenSource())
+        {
+            cts.Cancel();
+            await FluentActions.Awaiting(() => Cleaner.QuarantineAsync(new QuarantineRequest(scanId, [item.Seq]), null, cts.Token))
+                .Should().ThrowAsync<OperationCanceledException>();
+        }
+
+        var (scanId2, item2) = await ScanOneAsync("lock-b.txt", "lock-content-2");
+        var next = await Cleaner.QuarantineAsync(new QuarantineRequest(scanId2, [item2.Seq]), null, CancellationToken.None);
+        next.FilesQuarantined.Should().Be(1, "a later operation must not be blocked by the earlier cancelled one");
+    }
+
     [Fact]
     public async Task Happy_path_quarantine_moves_file_source_gone_bin_present_content_and_hash_match()
     {
