@@ -71,6 +71,7 @@ public static class ClearPathServices
         services.AddSingleton<IFileSystemWriter, FileSystemWriter>();
         services.AddSingleton<ICapabilityProbe, CapabilityProbe>();
         services.AddSingleton<ICapabilityGate>(sp => sp.GetRequiredService<CapabilitySettings>());
+        services.AddSingleton<IValidatedQuarantineLocation, QuarantineLocationProvider>();
 
         // Scanning (read-only)
         services.AddSingleton<IRuleCatalog, RuleCatalog>();

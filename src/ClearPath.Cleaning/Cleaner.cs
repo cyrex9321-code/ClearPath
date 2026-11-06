@@ -210,11 +210,13 @@ public sealed class Cleaner(
                 var snap = reader.Snapshot(target.File);
                 await journal.RecordItemAsync(operationId, item.Seq, ItemState.Quarantined,
                     validatedFacts with { QuarantinePath = quarantineName, QuarantineIdentity = snap.Identity, Error = rename.Detail }, CancellationToken.None).ConfigureAwait(false);
+                await journal.SetAttentionAsync(operationId, item.Seq, AttentionKind.None, null, CancellationToken.None).ConfigureAwait(false);
                 return (ItemState.Quarantined, snap.Size, false);
             }
             if (atSource == ProbeOutcome.SameIdentity)
             {
                 await journal.RecordItemAsync(operationId, item.Seq, ItemState.RolledBack, validatedFacts with { Error = rename.Detail }, CancellationToken.None).ConfigureAwait(false);
+                await journal.SetAttentionAsync(operationId, item.Seq, AttentionKind.None, null, CancellationToken.None).ConfigureAwait(false);
                 Count(skipsByReason, rename.Outcome == MutationOutcome.Locked ? SkipReason.Locked : SkipReason.UnsupportedOperation);
                 return (ItemState.Skipped, 0, false);
             }
@@ -338,6 +340,7 @@ public sealed class Cleaner(
                     var afterSnapshot = reader.Snapshot(quarantined);
                     await journal.RecordItemAsync(operationId, item.Seq, ItemState.Restored,
                         facts with { RestorePath = candidate, RestoreIdentity = afterSnapshot.Identity }, CancellationToken.None).ConfigureAwait(false);
+                    await journal.SetAttentionAsync(operationId, item.Seq, AttentionKind.None, null, CancellationToken.None).ConfigureAwait(false);
                     return (true, facts.SourceSize ?? 0);
                 }
                 if (rename.Outcome != MutationOutcome.DestinationExists)
@@ -436,6 +439,7 @@ public sealed class Cleaner(
                 {
                     purged++; bytes += item.Facts.SourceSize ?? 0;
                     await journal.RecordItemAsync(sourceOpId, item.Seq, ItemState.Purged, item.Facts, CancellationToken.None).ConfigureAwait(false);
+                    await journal.SetAttentionAsync(sourceOpId, item.Seq, AttentionKind.None, null, CancellationToken.None).ConfigureAwait(false);
                 }
                 else if (result.Outcome == MutationOutcome.DeletePending)
                 {

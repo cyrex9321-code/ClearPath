@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using ClearPath.Core.Abstractions;
 using ClearPath.Core.Cleaning;
@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ClearPath.Cleaning.Tests;
 
 /// <summary>
-/// Startup crash-recovery reconciliation (docs/15 Â§8.1), by directly writing journal rows into a
+/// Startup crash-recovery reconciliation (docs/15 §8.1), by directly writing journal rows into a
 /// non-terminal state via IOperationJournal and placing the real files that would exist at that crash
 /// point, then asserting IRecoveryService.ReconcileAsync reaches the documented resolution - never by
 /// trusting a return code, always by hash/identity verification against real files.
@@ -39,6 +39,36 @@ public sealed class RecoveryServiceTests : IAsyncLifetime
     {
         using var file = Writer.CreateChildFile(opDir, $"{seq}.bin")!;
         Writer.WriteAllAndFlush(file, Encoding.UTF8.GetBytes(content));
+    }
+
+    /// <summary>
+    /// Review M-A regression: a file with the SAME content but a DIFFERENT identity at the restore target is someone
+    /// else's. Recovery must not record the item as Restored.
+    /// </summary>
+    [Fact]
+    public async Task Same_content_different_identity_at_restore_target_is_never_claimed_as_restored()
+    {
+        const string content = "impostor-content";
+        var operationId = await Journal.BeginOperationAsync("Quarantine", "Quarantine", null, null, CancellationToken.None);
+        var (root, opDir) = OpenNewOperationDirectory(operationId);
+        try
+        {
+            // The quarantined .bin is gone; a same-content file sits at the restore target with another identity.
+            var targetPath = Path.Combine(_h.ScanRoot, "impostor-target.txt");
+            File.WriteAllText(targetPath, content);
+            var facts = new ItemFacts("src\\impostor-target.txt", new FileIdentity(1, 1), content.Length, null, Hash(content),
+                "1.bin", new FileIdentity(1, 1), "impostor-target.txt", null, null,
+                _h.ScanRoot, 1, new FileIdentity(1, 1), "impostor-target.txt");
+            await Journal.RecordItemAsync(operationId, 1, ItemState.RestoreMoving, facts, CancellationToken.None);
+
+            await Recovery.ReconcileAsync(operationId, CancellationToken.None);
+
+            var item = (await Journal.GetItemsAsync(operationId, CancellationToken.None)).Single();
+            item.State.Should().NotBe(ItemState.Restored, "a same-content file with a different identity is not our restored file");
+            item.Attention.Should().NotBe(AttentionKind.None, "the item must be flagged for attention instead");
+            File.Exists(targetPath).Should().BeTrue("the other file must be left untouched");
+        }
+        finally { opDir.Dispose(); root.Dispose(); }
     }
 
     [Fact]
@@ -91,7 +121,7 @@ public sealed class RecoveryServiceTests : IAsyncLifetime
     public async Task Item_recovery_cannot_verify_gets_Blocking_or_Retryable_attention_never_silently_dropped()
     {
         // Validated: the pre-mutation state. Facts are present but nothing was ever written/moved for this
-        // seq - the real crash-point table (docs/15 Â§8) expects "Validated" alone to roll back cleanly
+        // seq - the real crash-point table (docs/15 §8) expects "Validated" alone to roll back cleanly
         // (source untouched); to exercise the "cannot verify" branch we use Moving with NO identity/hash
         // recorded at all, which RecoveryService explicitly cannot reason about.
         var operationId = await Journal.BeginOperationAsync("Quarantine", "Quarantine", null, null, CancellationToken.None);

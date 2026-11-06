@@ -104,12 +104,13 @@ public partial class App : Application
     {
         var reports = services.GetRequiredService<StartupReports>();
 
-        // Recovery runs first, while the cleaning gate is still closed, so no user operation can interleave with it
-        // (review H-A). The self-test below is what opens the gate.
+        // Recovery first, while the cleaning gate is still closed, so no user operation can interleave with it
+        // (review H-A). It runs off the UI thread: its database and hashing work is synchronous (review L5).
+        // If recovery fails, the self-test is NOT run, so the gate stays closed (review M1).
         try
         {
             var recovery = services.GetRequiredService<IRecoveryService>();
-            var report = await recovery.ReconcileAsync(null, CancellationToken.None).ConfigureAwait(false);
+            var report = await Task.Run(() => recovery.ReconcileAsync(null, CancellationToken.None)).ConfigureAwait(false);
             reports.SetRecovery(report);
             if (report.StillAttention > 0)
             {
@@ -118,7 +119,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Startup recovery reconciliation failed");
+            logger.LogError(ex, "Startup recovery failed; cleaning stays disabled for this session");
+            return;
         }
 
         try

@@ -75,10 +75,6 @@ internal sealed class ClearPathHarness : IAsyncDisposable
         h._host = host;
 
         await host.Services.GetRequiredService<IDatabaseInitializer>().InitializeAsync().ConfigureAwait(false);
-        // Run the real startup self-test inside the sandbox: it opens the cleaning gate exactly as production does.
-        var selfTest = host.Services.GetRequiredService<ClearPath.Core.Cleaning.ICapabilityProbe>().Run();
-        if (!selfTest.AllPassed) Assert.Skip($"Startup self-test did not pass in this environment: {selfTest.FailureDetail}");
-
         EnsureQuarantineSandboxUsable(h.QuarantineSandbox);
         var settings = host.Services.GetRequiredService<ISettingsStore>();
         await settings.SaveAsync(settings.Current with { QuarantineLocation = h.QuarantineSandbox }).ConfigureAwait(false);
@@ -89,6 +85,11 @@ internal sealed class ClearPathHarness : IAsyncDisposable
             Assert.Skip($"Quarantine sandbox unusable ({probe.Rejection}): {probe.Detail}");
         }
         probe.Value!.Dispose();
+
+        // Run the real startup self-test against the quarantine location the sandbox now uses. It opens the cleaning
+        // gate exactly as production does, and it only runs once the location is the validated one.
+        var selfTest = host.Services.GetRequiredService<ClearPath.Core.Cleaning.ICapabilityProbe>().Run();
+        if (!selfTest.AllPassed) Assert.Skip($"Startup self-test did not pass in this environment: {selfTest.FailureDetail}");
 
         return h;
     }

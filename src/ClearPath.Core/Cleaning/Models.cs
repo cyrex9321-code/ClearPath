@@ -199,3 +199,12 @@ public interface IFaultInjector
 {
     void At(string point);
 }
+
+/// <summary>
+/// The quarantine location as QuarantineStore validates it (fixed NTFS, outside rule roots and deny-listed places),
+/// or null when no valid location is available. Used by the startup self-test so it tests exactly what quarantine uses.
+/// </summary>
+public interface IValidatedQuarantineLocation
+{
+    string? Resolve();
+}

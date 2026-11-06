@@ -47,7 +47,10 @@ public class NetArchTests
     public void Positive_control_bootstrap_does_depend_on_implementations()
     {
         // Proves the rule engine detects dependencies in these assemblies (so the App check above is meaningful).
+        // The composition root (ClearPathServices) is the only Bootstrap type that must reference implementations; other
+        // Bootstrap types (e.g. the quarantine-location adapter) legitimately depend on Core only.
         var result = Types.FromFile(AssemblyLocator.PathOf("Bootstrap"))
+            .That().HaveName("ClearPathServices")
             .Should().HaveDependencyOnAny(ImplementationNamespaces)
             .GetResult();
         result.IsSuccessful.Should().BeTrue();

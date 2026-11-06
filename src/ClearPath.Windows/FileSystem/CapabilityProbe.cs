@@ -1,149 +1,168 @@
 using ClearPath.Core.Abstractions;
 using ClearPath.Core.Cleaning;
 using ClearPath.Core.FileSystem;
-using ClearPath.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace ClearPath.Windows.FileSystem;
 
 /// <summary>
-/// Startup capability self-test (docs/15 §11.7). Runs in <c>%LOCALAPPDATA%\ClearPath\selftest</c> — never
-/// touches user files — exercising the same operations quarantine/restore/purge depend on. A failing
-/// capability disables the features that need it rather than falling back to an unverified path.
-/// Every filesystem operation here is handle-relative (via <see cref="IDirectoryProvisioner"/>/
-/// <see cref="IFileSystemWriter"/>), never a path-based <c>System.IO.Directory</c> call.
+/// Startup capability self-test (docs/15 §11.7).
+/// It creates its own uniquely named directory on the validated quarantine location (FILE_CREATE, so it can never
+/// adopt an existing folder), exercises the operations quarantine and restore depend on, and deletes only the files
+/// whose identities it recorded itself (review M6). It fails closed: the cleaning gate opens only if every required
+/// check ran and passed AND cleanup succeeded (review L4).
 /// </summary>
 public sealed class CapabilityProbe(
-    IFileSystemReader reader, IFileSystemWriter writer, IDirectoryProvisioner provisioner,
-    IAppPaths paths, ISettingsStore appSettings, CapabilitySettings settings, ILogger<CapabilityProbe> logger) : ICapabilityProbe
+    IFileSystemReader reader, IFileSystemWriter writer, IValidatedQuarantineLocation location,
+    CapabilitySettings settings, ILogger<CapabilityProbe> logger) : ICapabilityProbe
 {
     private static readonly string[] RequiredChecks =
         ["create", "rename_no_overwrite_new", "rename_rejects_overwrite", "hash_preserves_times", "delete_and_verify_absent"];
 
+    private static readonly string[] ProbeFileNames = ["a.tmp", "b.tmp", "c.tmp"];
+
     public CapabilityReport Run()
     {
+        settings.AllPassed = false; // fail closed until this run completes successfully
         var results = new Dictionary<string, bool>();
+        var recorded = new List<FileIdentity>(); // identities of the files THIS run created
         string? failureDetail = null;
-        // Test the same location QuarantineStore uses (the configured one, or the default), so the self-test covers the
-        // volume that quarantine and restore actually mutate (docs/15 §11.7, review M-E).
-        var location = appSettings.Current.QuarantineLocation ?? paths.DefaultQuarantineDirectory;
-        var selftestDir = Path.Combine(location, "selftest");
+        bool cleaned = true;
 
+        var locationPath = location.Resolve();
+        if (locationPath is null)
+        {
+            return Finish(results, "No valid quarantine location is available for the self-test.", cleanedOk: true);
+        }
+
+        var dirName = "clearpath-selftest-" + Guid.NewGuid().ToString("N");
+        IDirectoryHandle? sd = null;
         try
         {
-            // Race-resistant creation (reject-reparse, FILE_CREATE missing components); tolerates a leftover
-            // directory from a prior crashed run - its contents are cleaned up with known names below.
-            provisioner.EnsureDirectory(LocalPath.Parse(selftestDir));
-
-            using var chain = reader.OpenChain(selftestDir, forMutation: true);
-            var dir = chain.Leaf;
-
-            // P12/P4b: create-new and relative rename with no overwrite.
-            var a = writer.CreateChildFile(dir, "a.tmp");
-            results["create"] = a is not null;
-            if (a is not null)
+            using (var parent = reader.OpenChain(locationPath, forMutation: true))
             {
-                writer.WriteAllAndFlush(a, "x"u8);
-                var rename = writer.RenameRelative(a, dir, "b.tmp");
-                results["rename_no_overwrite_new"] = rename.Outcome == MutationOutcome.Success;
-
-                var c = writer.CreateChildFile(dir, "c.tmp");
-                if (c is not null)
-                {
-                    writer.WriteAllAndFlush(c, "y"u8);
-                    var collideResult = writer.RenameRelative(c, dir, "b.tmp"); // "b.tmp" already exists now
-                    results["rename_rejects_overwrite"] = collideResult.Outcome == MutationOutcome.DestinationExists;
-                    // Must release our own share-none handle first: a second share-none open of c.tmp fails
-                    // silently in DeleteIfOpenable, leaving the file behind and the directory non-empty.
-                    c.Dispose();
-                    DeleteIfOpenable(dir, "c.tmp");
-                }
-                a.Dispose();
+                sd = writer.CreateChildDirectory(parent.Leaf, dirName);
             }
-
-            // P14: suspend time updates, hash without changing LastAccess/Change.
-            var b = reader.OpenChildFileForRead(dir, "b.tmp");
-            if (b is not null)
+            if (sd is null)
             {
-                var before = reader.Snapshot(b).Times;
-                b.Dispose();
-                var bm = writer.OpenChildFileForMutation(dir, "b.tmp");
-                if (bm is not null)
-                {
-                    var captured = writer.SuspendTimeUpdates(bm);
-                    _ = writer.HashSha256(bm, CancellationToken.None);
-                    var afterTimes = reader.Snapshot(bm).Times;
-                    results["hash_preserves_times"] = afterTimes.LastAccess == before.LastAccess && afterTimes.Change == before.Change;
-                    writer.ApplyTimes(bm, captured);
-                    bm.Dispose();
-                }
+                failureDetail = "Could not create a private self-test directory.";
             }
-
-            // P6/P7/P16: delete then verify absence by identity.
-            var bm2 = writer.OpenChildFileForMutation(dir, "b.tmp");
-            if (bm2 is not null)
+            else
             {
-                var identity = bm2.Identity;
-                var del = writer.MarkForDelete(bm2);
-                bm2.Dispose();
-                var outcome = reader.ProbeName(dir, "b.tmp", identity);
-                results["delete_and_verify_absent"] = del.Outcome == MutationOutcome.Success && outcome == ProbeOutcome.Absent;
-            }
-
-            settings.RenameExSupported = results.GetValueOrDefault("rename_no_overwrite_new") && results.GetValueOrDefault("rename_rejects_overwrite");
-            // Fail closed: every required check must have run and passed. A check that could not be recorded is a failure.
-            settings.AllPassed = RequiredChecks.All(k => results.GetValueOrDefault(k));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Capability self-test failed");
-            failureDetail = ex.Message;
-            settings.AllPassed = false;
-        }
-        finally
-        {
-            CleanUpSelfTestDirectory(selftestDir);
-        }
-
-        return new CapabilityReport(settings.AllPassed, results, DateTimeOffset.UtcNow, failureDetail);
-    }
-
-    /// <summary>Best-effort delete of a known self-test file, via a handle-relative mutation (never a path-based call).</summary>
-    private void DeleteIfOpenable(IDirectoryHandle dir, string name)
-    {
-        var handle = writer.OpenChildFileForMutation(dir, name);
-        if (handle is null) return;
-        writer.MarkForDelete(handle);
-        handle.Dispose();
-    }
-
-    /// <summary>Removes every known self-test artifact and the (now empty) directory itself, handle by handle.</summary>
-    private void CleanUpSelfTestDirectory(string selftestDir)
-    {
-        try
-        {
-            var parentPath = Path.GetDirectoryName(selftestDir.TrimEnd('\\')) ?? paths.DataDirectory;
-            using var parentChain = reader.OpenChain(parentPath, forMutation: true);
-            var selftestName = Path.GetFileName(selftestDir.TrimEnd('\\'));
-
-            var dirHandle = reader.OpenChildDirectory(parentChain.Leaf, selftestName, shareDelete: false);
-            if (dirHandle is not null)
-            {
-                using (dirHandle)
-                {
-                    foreach (var leftover in new[] { "a.tmp", "b.tmp", "c.tmp" }) DeleteIfOpenable(dirHandle, leftover);
-                }
-            }
-
-            var result = writer.DeleteEmptyDirectory(parentChain.Leaf, selftestName);
-            if (result.Outcome is not (MutationOutcome.Success or MutationOutcome.NotFound))
-            {
-                logger.LogWarning("Could not remove self-test directory: {Detail}", result.Detail);
+                RunChecks(sd, results, recorded);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
-            logger.LogWarning(ex, "Could not remove self-test directory");
+            logger.LogError(ex, "Capability self-test failed to run");
+            failureDetail = ex.Message;
         }
+        finally
+        {
+            cleaned = CleanUp(locationPath, dirName, sd, recorded);
+        }
+
+        return Finish(results, failureDetail, cleaned);
+    }
+
+    private CapabilityReport Finish(Dictionary<string, bool> results, string? failureDetail, bool cleanedOk)
+    {
+        var allPassed = failureDetail is null && cleanedOk && RequiredChecks.All(k => results.GetValueOrDefault(k));
+        settings.RenameExSupported = results.GetValueOrDefault("rename_no_overwrite_new") && results.GetValueOrDefault("rename_rejects_overwrite");
+        settings.AllPassed = allPassed;
+        return new CapabilityReport(allPassed, results, DateTimeOffset.UtcNow, failureDetail);
+    }
+
+    private void RunChecks(IDirectoryHandle sd, Dictionary<string, bool> results, List<FileIdentity> recorded)
+    {
+        // Create-new and no-overwrite rename.
+        var a = writer.CreateChildFile(sd, "a.tmp");
+        results["create"] = a is not null;
+        if (a is not null)
+        {
+            recorded.Add(a.Identity);
+            writer.WriteAllAndFlush(a, "x"u8);
+            results["rename_no_overwrite_new"] = writer.RenameRelative(a, sd, "b.tmp").Outcome == MutationOutcome.Success;
+
+            var c = writer.CreateChildFile(sd, "c.tmp");
+            if (c is not null)
+            {
+                recorded.Add(c.Identity);
+                writer.WriteAllAndFlush(c, "y"u8);
+                results["rename_rejects_overwrite"] = writer.RenameRelative(c, sd, "b.tmp").Outcome == MutationOutcome.DestinationExists;
+                c.Dispose();
+            }
+            a.Dispose();
+        }
+
+        // Hashing must not change LastAccess or ChangeTime (suspension of time updates).
+        var b = reader.OpenChildFileForRead(sd, "b.tmp");
+        if (b is not null)
+        {
+            var before = reader.Snapshot(b).Times;
+            b.Dispose();
+            var bm = writer.OpenChildFileForMutation(sd, "b.tmp");
+            if (bm is not null)
+            {
+                var captured = writer.SuspendTimeUpdates(bm);
+                _ = writer.HashSha256(bm, CancellationToken.None);
+                var after = reader.Snapshot(bm).Times;
+                results["hash_preserves_times"] = after.LastAccess == before.LastAccess && after.Change == before.Change;
+                writer.ApplyTimes(bm, captured);
+                bm.Dispose();
+            }
+        }
+
+        // Delete, then verify absence by identity.
+        var bm2 = writer.OpenChildFileForMutation(sd, "b.tmp");
+        if (bm2 is not null)
+        {
+            var identity = bm2.Identity;
+            var del = writer.MarkForDelete(bm2);
+            bm2.Dispose();
+            results["delete_and_verify_absent"] = del.Outcome == MutationOutcome.Success && reader.ProbeName(sd, "b.tmp", identity) == ProbeOutcome.Absent;
+        }
+    }
+
+    /// <summary>
+    /// Deletes only the probe files whose identities this run recorded, then removes the probe directory. Never deletes
+    /// anything it did not create. Returns false if any part of the cleanup could not be completed.
+    /// </summary>
+    private bool CleanUp(string locationPath, string dirName, IDirectoryHandle? sd, List<FileIdentity> recorded)
+    {
+        bool ok = true;
+        try
+        {
+            if (sd is not null)
+            {
+                foreach (var name in ProbeFileNames)
+                {
+                    var h = writer.OpenChildFileForMutation(sd, name);
+                    if (h is null) continue;
+                    using (h)
+                    {
+                        if (recorded.Any(id => id.Equals(h.Identity)))
+                        {
+                            if (writer.MarkForDelete(h).Outcome != MutationOutcome.Success) ok = false;
+                        }
+                    }
+                }
+                sd.Dispose();
+            }
+
+            using var parent = reader.OpenChain(locationPath, forMutation: true);
+            var result = writer.DeleteEmptyDirectory(parent.Leaf, dirName);
+            if (result.Outcome is not (MutationOutcome.Success or MutationOutcome.NotFound))
+            {
+                ok = false;
+                logger.LogWarning("Self-test directory could not be removed: {Detail}", result.Detail);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            logger.LogWarning(ex, "Self-test cleanup failed");
+            ok = false;
+        }
+        return ok;
     }
 }

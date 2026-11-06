@@ -198,7 +198,7 @@ public sealed class FileSystemReader : IFileSystemReader
     {
         var raw = Raw(handle);
         var basic = NativeIo.BasicInfo(raw);
-        var (volumeSerial, fileId) = NativeIo.IdOrClose(raw);
+        var (volumeSerial, fileId) = HandleQueries.GetFileId(raw);
         uint linkCount = 1; bool deletePending = false;
         if (!handle.IsDirectory)
         {
@@ -260,7 +260,7 @@ public sealed class FileSystemReader : IFileSystemReader
             {
                 // Fall back to the volume serial already available via FileIdInfo (proven reliable); the
                 // filesystem name is unknown in this case, which callers must treat as "not confirmed NTFS".
-                var (fallbackSerial, _) = NativeIo.IdOrClose(raw);
+                var (fallbackSerial, _) = HandleQueries.GetFileId(raw);
                 serial = (uint)fallbackSerial;
                 name = string.Empty;
             }

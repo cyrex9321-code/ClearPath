@@ -82,6 +82,8 @@ public sealed class Scanner(IFileSystemReader reader, IPathGuard pathGuard, IRul
                 Count(skips, SkipReason.AccessDenied);
             }
 
+            // Final update for this rule, so the last count is always shown even when it is not a multiple of 200.
+            progress?.Report(new ScanProgress(rule.Id, ruleFiles, ruleFiles, ruleBytes, totalSkipped));
             categories[rule.CategoryId] = (categories.GetValueOrDefault(rule.CategoryId).Files + ruleFiles, categories.GetValueOrDefault(rule.CategoryId).Bytes + ruleBytes);
             totalFiles += ruleFiles; totalBytes += ruleBytes;
         }
