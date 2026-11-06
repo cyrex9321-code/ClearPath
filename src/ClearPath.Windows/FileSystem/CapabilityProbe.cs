@@ -47,6 +47,9 @@ public sealed class CapabilityProbe(
                     writer.WriteAllAndFlush(c, "y"u8);
                     var collideResult = writer.RenameRelative(c, dir, "b.tmp"); // "b.tmp" already exists now
                     results["rename_rejects_overwrite"] = collideResult.Outcome == MutationOutcome.DestinationExists;
+                    // Must release our own share-none handle first: a second share-none open of c.tmp fails
+                    // silently in DeleteIfOpenable, leaving the file behind and the directory non-empty.
+                    c.Dispose();
                     DeleteIfOpenable(dir, "c.tmp");
                 }
                 a.Dispose();
