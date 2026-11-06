@@ -14,7 +14,9 @@ namespace ClearPath.App;
 
 public partial class App : Application
 {
-    private const string MutexName = @"Local\ClearPath.SingleInstance";
+    // Per USER, not per session (Global + SID): a second Windows session for the same user must not run a second
+    // instance, and must not clear another instance's live operation lock during its startup recovery.
+    private static readonly string MutexName = @"Global\ClearPath-" +(System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? "unknown");
     private const string AppTitle = "ClearPath";
 
     private Mutex? _mutex;

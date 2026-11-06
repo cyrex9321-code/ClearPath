@@ -35,6 +35,50 @@ public sealed class CleanerQuarantineTests : IAsyncLifetime
     }
 
     /// <summary>Regression for review finding H1: a file inside a subfolder used to fail on an already-disposed parent handle.</summary>
+    /// <summary>
+    /// Regression for review finding H2, mid-operation form: cancel AFTER the first of two files has been processed.
+    /// The lock must still be released, and the second file must be left untouched (not half-moved).
+    /// </summary>
+    [Fact]
+    public async Task Cancellation_mid_operation_releases_the_lock_and_leaves_remaining_files_untouched_regression_H2()
+    {
+        var rule = _h.Services.GetRequiredService<ClearPath.Core.Cleaning.IRuleCatalog>().Rules.FirstOrDefault(r => r.Id == "q-rule")
+            ?? _h.AddRule("q-rule", [], TimeSpan.FromHours(24));
+        var names = new[] { "mid-1.txt", "mid-2.txt" };
+        foreach (var n in names)
+        {
+            var p = _h.PathUnderScanRoot(n);
+            File.WriteAllText(p, "mid-" + n);
+            File.SetLastWriteTimeUtc(p, DateTime.UtcNow.AddDays(-2));
+        }
+        var scan = await Scanner.ScanAsync(new ScanRequest([rule.Id]), null, CancellationToken.None);
+        var items = (await ScanStore.GetPageAsync(scan.ScanId, rule.CategoryId, 0, 1000, CancellationToken.None))
+            .Where(i => names.Contains(i.RelativeComponents[^1])).OrderBy(i => i.Seq).ToList();
+        items.Should().HaveCount(2);
+
+        using var cts = new CancellationTokenSource();
+        var progress = new CancelAfterFirstItem(cts);
+        await FluentActions.Awaiting(() => Cleaner.QuarantineAsync(new QuarantineRequest(scan.ScanId, items.Select(i => i.Seq).ToList()), progress, cts.Token))
+            .Should().ThrowAsync<OperationCanceledException>();
+
+        // The second file was never touched.
+        File.Exists(_h.PathUnderScanRoot(items[1].RelativeComponents[^1])).Should().BeTrue("the uncancelled file must remain in place");
+
+        // The lock was released, so a fresh operation runs.
+        var (scanId2, item2) = await ScanOneAsync("mid-after.txt", "after-cancel");
+        var next = await Cleaner.QuarantineAsync(new QuarantineRequest(scanId2, [item2.Seq]), null, CancellationToken.None);
+        next.FilesQuarantined.Should().Be(1);
+    }
+
+    private sealed class CancelAfterFirstItem(CancellationTokenSource cts) : IProgress<int>
+    {
+        public void Report(int value)
+        {
+            // Progress is reported after each item; cancel once the first item has been handled.
+            if (value > 0) cts.Cancel();
+        }
+    }
+
     [Fact]
     public async Task File_inside_a_subfolder_is_quarantined_regression_H1()
     {
