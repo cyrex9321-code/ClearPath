@@ -40,13 +40,31 @@
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
-                        <DataGridTextColumn Header="Logical size" Binding="{Binding Size}" Width="*">
+                        <DataGridTextColumn Header="Logical size" Binding="{Binding Size}" Width="110">
                             <DataGridTextColumn.ElementStyle>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="TextAlignment" Value="Right" />
                                 </Style>
                             </DataGridTextColumn.ElementStyle>
                         </DataGridTextColumn>
+                        <DataGridTemplateColumn Header="Actions" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <ui:Button Content="Restore…" Margin="0,2,6,2"
+                                                   Visibility="{Binding CanRestore, Converter={StaticResource BoolToVis}}"
+                                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                                                   Command="{Binding DataContext.RestoreCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   CommandParameter="{Binding}" />
+                                        <ui:Button Content="Purge…" Appearance="Danger" Margin="0,2,0,2"
+                                                   Visibility="{Binding CanPurge, Converter={StaticResource BoolToVis}}"
+                                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBool}}"
+                                                   Command="{Binding DataContext.PurgeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                   CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>
 

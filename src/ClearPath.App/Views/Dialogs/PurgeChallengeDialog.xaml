@@ -1,0 +1,41 @@
+<ui:FluentWindow x:Class="ClearPath.App.Views.Dialogs.PurgeChallengeDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Permanently purge"
+                 Width="480" SizeToContent="Height" MaxHeight="640"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Permanently purge" />
+
+        <StackPanel Grid.Row="1" Margin="24,8,24,8">
+            <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                       Text="This permanently deletes these files from quarantine. There is no copy left anywhere and this cannot be undone."
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="SummaryText" Style="{StaticResource BodyTextStyle}" Margin="0,12,0,0" TextWrapping="Wrap" />
+            <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,4"
+                       Text="Type the text below exactly to confirm:" />
+            <Border Style="{StaticResource CardStyle}" Padding="10">
+                <TextBlock x:Name="RequiredTextBlock" Style="{StaticResource BodyTextStyle}" FontFamily="Consolas" FontWeight="SemiBold" />
+            </Border>
+            <ui:TextBox x:Name="ConfirmationBox" Margin="0,10,0,0" TextChanged="OnConfirmationChanged" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,8,24,20">
+            <ui:Button Content="Cancel" Margin="0,0,8,0" Click="OnCancelClick" />
+            <ui:Button x:Name="ConfirmButton" Content="Purge permanently" Appearance="Danger" IsEnabled="False" Click="OnConfirmClick" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

@@ -9,6 +9,9 @@
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
     <svc:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
     <svc:NullToCollapsedConverter x:Key="NullToCollapsed" />
+    <svc:BoolToExpandLabelConverter x:Key="ExpandButtonText" />
+    <svc:PassFailGlyphConverter x:Key="PassFailGlyph" />
+    <svc:InverseBooleanConverter x:Key="InverseBool" />
 
     <!-- Cards -->
     <Style x:Key="CardStyle" TargetType="Border">

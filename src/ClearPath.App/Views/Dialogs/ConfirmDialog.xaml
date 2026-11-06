@@ -1,0 +1,43 @@
+<ui:FluentWindow x:Class="ClearPath.App.Views.Dialogs.ConfirmDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="Confirm"
+                 Width="480" SizeToContent="Height" MaxHeight="640"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar x:Name="DialogTitleBar" Grid.Row="0" Title="Confirm" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="420">
+            <StackPanel Margin="24,8,24,8">
+                <TextBlock x:Name="MessageText" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" />
+                <ItemsControl x:Name="DetailsList" Margin="0,12,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding}" Margin="0,2,0,2" TextWrapping="Wrap" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock x:Name="WarningText" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
+                           Foreground="{DynamicResource SystemFillColorCautionBrush}" Margin="0,12,0,0" TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,8,24,20">
+            <ui:Button x:Name="CancelButton" Content="Cancel" Margin="0,0,8,0" Click="OnCancelClick" />
+            <ui:Button x:Name="ConfirmButton" Content="Confirm" Appearance="Primary" Click="OnConfirmClick" />
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>
