@@ -210,6 +210,12 @@ public sealed class Cleaner(
                 var snap = reader.Snapshot(target.File);
                 await journal.RecordItemAsync(operationId, item.Seq, ItemState.Quarantined,
                     validatedFacts with { QuarantinePath = quarantineName, QuarantineIdentity = snap.Identity, Error = rename.Detail }, CancellationToken.None).ConfigureAwait(false);
+                // Same link-count rule as the success path (review L6): another name for the data means it is not ours alone.
+                if (snap.LinkCount != 1)
+                {
+                    await journal.SetAttentionAsync(operationId, item.Seq, AttentionKind.Blocking, "The file has more than one hard link; it needs review.", CancellationToken.None).ConfigureAwait(false);
+                    return (ItemState.Quarantined, 0, true);
+                }
                 await journal.SetAttentionAsync(operationId, item.Seq, AttentionKind.None, null, CancellationToken.None).ConfigureAwait(false);
                 return (ItemState.Quarantined, snap.Size, false);
             }
