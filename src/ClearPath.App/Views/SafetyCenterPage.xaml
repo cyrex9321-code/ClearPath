@@ -96,7 +96,60 @@
             <!-- Capability -->
             <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Handle-operation capability" />
             <Border Style="{StaticResource CardStyle}">
-                <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding CapabilityStatus}" />
+                <StackPanel>
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Text="Running…"
+                               Visibility="{Binding CapabilityRunning, Converter={StaticResource BoolToVis}}" />
+                    <StackPanel Visibility="{Binding CapabilityRunning, Converter={StaticResource InverseBoolToVis}}">
+                        <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" Text="{Binding CapabilitySummaryText}" />
+                        <ItemsControl ItemsSource="{Binding CapabilityChecks}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource BodyTextStyle}" Width="24" Text="{Binding Passed, Converter={StaticResource PassFailGlyph}}" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource BodyTextStyle}" Text="{Binding Name}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,8,0,0" Text="{Binding CapabilityFailureDetail}"
+                                   Visibility="{Binding CapabilityFailureDetail, Converter={StaticResource NullToCollapsed}}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Pending recovery -->
+            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Startup recovery" />
+            <ui:InfoBar Title="Items need your attention" Message="{Binding RecoveryAttentionMessage}"
+                        Severity="Warning" IsOpen="True" IsClosable="False" Margin="0,0,0,12"
+                        Visibility="{Binding HasRecoveryAttention, Converter={StaticResource BoolToVis}}" />
+            <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource BodyTextStyle}" Text="Running…"
+                               Visibility="{Binding RecoveryRunning, Converter={StaticResource BoolToVis}}" />
+                    <Grid Visibility="{Binding RecoveryRunning, Converter={StaticResource InverseBoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Reconciled" />
+                            <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RecoveryReconciled}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Still needs attention" />
+                            <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RecoveryStillAttention}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Retried" />
+                            <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RecoveryRetried}" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
             </Border>
 
             <!-- Exclusions -->

@@ -7,44 +7,129 @@
         <StackPanel Margin="{StaticResource Pad.Page}">
             <TextBlock Style="{StaticResource PageTitleStyle}" Text="Quick Clean" />
             <TextBlock Style="{StaticResource PageSubtitleStyle}"
-                       Text="Quick Clean will only ever look at the six locations below. Nothing outside this list is scanned." />
+                       Text="Quick Clean only ever looks at the allow-listed categories below. Nothing outside this list is scanned." />
 
-            <ui:InfoBar Title="Scanning and cleaning are not implemented yet"
-                        Message="They arrive in milestone M3, after the safety design is approved. This page is information only; nothing here can scan or change files."
-                        Severity="Informational" IsOpen="True" IsClosable="False" Margin="0,16,0,0" />
+            <!-- Scan controls -->
+            <Border Style="{StaticResource CardStyle}" Margin="0,16,0,0">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Text="{Binding ScanStatusText}" />
+                        <ui:Button Grid.Column="1" Content="Cancel" Margin="0,0,8,0"
+                                   Command="{Binding CancelScanCommand}" IsEnabled="{Binding CanCancelScan}"
+                                   Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
+                        <ui:Button Grid.Column="2" Content="Scan now" Appearance="Primary"
+                                   Command="{Binding ScanCommand}" IsEnabled="{Binding CanStartScan}" />
+                    </Grid>
+                    <ProgressBar Style="{StaticResource ProgressStyle}" IsIndeterminate="True"
+                                 Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
+                </StackPanel>
+            </Border>
 
-            <TextBlock Style="{StaticResource SectionHeaderStyle}" Text="Planned categories" />
+            <ui:InfoBar Title="Scan failed" Message="{Binding ScanError}"
+                        Severity="Error" IsOpen="True" IsClosable="False" Margin="0,12,0,0"
+                        Visibility="{Binding ScanError, Converter={StaticResource NullToCollapsed}}" />
 
-            <ItemsControl ItemsSource="{Binding Categories}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Style="{StaticResource CardStyle}" Margin="{StaticResource Margin.Card}">
-                            <StackPanel>
-                                <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" FontSize="16" Text="{Binding Name}" />
-                                <Grid Margin="0,10,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3*" />
-                                        <ColumnDefinition Width="2*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Margin="0,0,16,0">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Location" />
-                                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding Location}" />
+            <ui:InfoBar Title="Files on a different volume" Message="{Binding CrossVolumeNote}"
+                        Severity="Informational" IsOpen="True" IsClosable="False" Margin="0,12,0,0"
+                        Visibility="{Binding CrossVolumeNote, Converter={StaticResource NullToCollapsed}}" />
+
+            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,8,0,0" Text="{Binding SkipsSummaryText}"
+                       Visibility="{Binding SkipsSummaryText, Converter={StaticResource NullToCollapsed}}" />
+
+            <!-- Results -->
+            <StackPanel Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                <Grid Margin="0,16,0,8">
+                    <TextBlock Style="{StaticResource SectionHeaderStyle}" Margin="0" Text="Results by category" />
+                    <ui:Button HorizontalAlignment="Right" Content="Quarantine selected" Appearance="Primary"
+                               Command="{Binding QuarantineSelectedCommand}" IsEnabled="{Binding CanQuarantine}"
+                               Visibility="{Binding IsQuarantining, Converter={StaticResource InverseBoolToVis}}" />
+                    <ui:ProgressRing HorizontalAlignment="Right" Width="24" Height="24" IsIndeterminate="True"
+                                  Visibility="{Binding IsQuarantining, Converter={StaticResource BoolToVis}}" />
+                </Grid>
+
+                <ItemsControl ItemsSource="{Binding Categories}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource CardStyle}" Margin="{StaticResource Margin.Card}" Padding="0">
+                                <StackPanel>
+                                    <!-- Category header -->
+                                    <Grid Margin="20,16,20,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" FontSize="16" Text="{Binding DisplayName}" />
+                                            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,2,0,0">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}{0} file(s) · {1}">
+                                                        <Binding Path="FileCountText" />
+                                                        <Binding Path="TotalBytesText" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,4,0,0" Text="{Binding RiskNote}" />
+                                            <TextBlock Style="{StaticResource CaptionStyle}" FontWeight="SemiBold" Margin="0,6,0,0" Text="{Binding SelectedSummaryText}" />
+                                        </StackPanel>
+                                        <ui:Button Grid.Column="1" Margin="0,0,8,0" Content="{Binding SelectAllButtonText}"
+                                                   Command="{Binding SelectAllCommand}" VerticalAlignment="Top" />
+                                        <ui:Button Grid.Column="2" Content="{Binding IsExpanded, Converter={StaticResource ExpandButtonText}}"
+                                                   Command="{Binding ToggleExpandCommand}" VerticalAlignment="Top" />
+                                    </Grid>
+
+                                    <!-- Items -->
+                                    <StackPanel Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
+                                        <Border BorderThickness="0,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                            <ItemsControl ItemsSource="{Binding Items}" MaxHeight="360">
+                                                <ItemsControl.Template>
+                                                    <ControlTemplate TargetType="ItemsControl">
+                                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                            <ItemsPresenter />
+                                                        </ScrollViewer>
+                                                    </ControlTemplate>
+                                                </ItemsControl.Template>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="20,8,20,8">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0"
+                                                                      IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsSelectable}" />
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding DisplayPath}" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Style="{StaticResource CaptionStyle}" Text="{Binding CrossVolumeNote}"
+                                                                           Visibility="{Binding CrossVolumeNote, Converter={StaticResource NullToCollapsed}}" />
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="2" Style="{StaticResource CaptionStyle}" VerticalAlignment="Center" Text="{Binding SizeText}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Border>
+                                        <ui:Button Margin="20,8,20,12" HorizontalAlignment="Left" Content="Load more"
+                                                   Command="{Binding LoadMoreCommand}" Visibility="{Binding HasMore, Converter={StaticResource BoolToVis}}"
+                                                   IsEnabled="{Binding IsLoadingItems, Converter={StaticResource InverseBoolToVis}}" />
+                                        <TextBlock Margin="20,0,20,12" Style="{StaticResource CaptionStyle}" Text="Loading…"
+                                                   Visibility="{Binding IsLoadingItems, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="Minimum age" />
-                                        <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding MinimumAge}" />
-                                    </StackPanel>
-                                </Grid>
-                                <TextBlock Style="{StaticResource FieldLabelStyle}" Margin="0,10,0,2" Text="Risk note" />
-                                <TextBlock Style="{StaticResource BodyTextStyle}" Text="{Binding RiskNote}" />
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
 
-            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,4,0,0"
-                       Text="Read-only files, system files and files that are in use will always be skipped. When cleaning arrives, files are moved to quarantine first so they can be restored." />
+            <TextBlock Style="{StaticResource CaptionStyle}" Margin="0,12,0,0"
+                       Text="Read-only files, system files and files that are in use are always skipped. Files are moved to quarantine first, so they can be restored from History." />
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -5,6 +5,7 @@ using ClearPath.App.ViewModels;
 using ClearPath.App.Views;
 using ClearPath.Bootstrap;
 using ClearPath.Core.Abstractions;
+using ClearPath.Core.Cleaning;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -60,6 +61,8 @@ public partial class App : Application
             ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();
             _logger.LogInformation("ClearPath UI started");
+
+            _ = RunStartupChecksAsync(_host.Services, _logger);
         }
         catch (Exception ex)
         {
@@ -90,9 +93,51 @@ public partial class App : Application
         base.OnExit(e);
     }
 
+    /// <summary>
+    /// Runs the capability self-test and startup recovery reconciliation in the background, off the UI
+    /// thread, so the window never waits on them. Results are stored in <see cref="StartupReports"/> for
+    /// Safety Center to display; failures are logged but never block or crash the app.
+    /// </summary>
+    private static async Task RunStartupChecksAsync(IServiceProvider services, ILogger<App> logger)
+    {
+        var reports = services.GetRequiredService<StartupReports>();
+
+        try
+        {
+            var probe = services.GetRequiredService<ICapabilityProbe>();
+            var report = await Task.Run(probe.Run).ConfigureAwait(false);
+            reports.SetCapability(report);
+            if (!report.AllPassed)
+            {
+                logger.LogWarning("Capability self-test reported a failure: {Detail}", report.FailureDetail);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Capability self-test failed to run");
+        }
+
+        try
+        {
+            var recovery = services.GetRequiredService<IRecoveryService>();
+            var report = await recovery.ReconcileAsync(null, CancellationToken.None).ConfigureAwait(false);
+            reports.SetRecovery(report);
+            if (report.StillAttention > 0)
+            {
+                logger.LogWarning("Startup recovery left {Count} item(s) needing attention", report.StillAttention);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Startup recovery reconciliation failed");
+        }
+    }
+
     private static void RegisterUi(IServiceCollection services)
     {
         services.AddSingleton<ThemeService>();
+        services.AddSingleton<StartupReports>();
+        services.AddSingleton<IDialogService, DialogService>();
 
         services.AddSingleton<DashboardViewModel>();
         services.AddSingleton<QuickCleanViewModel>();
