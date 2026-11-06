@@ -73,4 +73,27 @@ public class NetArchTests
             result.IsSuccessful.Should().BeTrue($"{project}: {string.Join(", ", result.FailingTypeNames ?? [])}");
         }
     }
+
+    private static bool ReferencesType(string dllPath, string typeName)
+    {
+        using var stream = File.OpenRead(dllPath);
+        using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+        var md = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(pe);
+        return md.TypeReferences.Select(h => md.GetString(md.GetTypeReference(h).Name)).Contains(typeName);
+    }
+
+    [Fact]
+    public void Scanning_never_references_IFileSystemWriter()
+    {
+        // Scanning is read-only (docs/15 §6): IL-level check that the mutation interface is never even referenced.
+        ReferencesType(AssemblyLocator.PathOf("Scanning"), "IFileSystemWriter").Should().BeFalse();
+        ReferencesType(AssemblyLocator.PathOf("Scanning"), "IFileSystemReader").Should().BeTrue("positive control: the check can see type references");
+    }
+
+    [Fact]
+    public void Positive_control_cleaning_and_backup_reference_IFileSystemWriter()
+    {
+        ReferencesType(AssemblyLocator.PathOf("Cleaning"), "IFileSystemWriter").Should().BeTrue();
+        ReferencesType(AssemblyLocator.PathOf("Backup"), "IFileSystemWriter").Should().BeTrue();
+    }
 }

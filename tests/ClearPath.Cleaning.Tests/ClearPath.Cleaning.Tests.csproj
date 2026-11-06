@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
+    <Using Include="ClearPath.TestSupport" />
+    <Compile Include="..\Shared\TempSandbox.cs" Link="Shared\TempSandbox.cs" />
+    <Compile Include="..\Shared\ClearPathHarness.cs" Link="Shared\ClearPathHarness.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ClearPath.Core\ClearPath.Core.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Cleaning\ClearPath.Cleaning.csproj" />
+    <ProjectReference Include="..\..\src\ClearPath.Bootstrap\ClearPath.Bootstrap.csproj" />
+  </ItemGroup>
+</Project>

@@ -13,13 +13,22 @@
     <Project Path="tests/ClearPath.Architecture.Tests/ClearPath.Architecture.Tests.csproj">
       <Platform Project="x64" />
     </Project>
+    <Project Path="tests/ClearPath.Backup.Tests/ClearPath.Backup.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
     <Project Path="tests/ClearPath.Bootstrap.Tests/ClearPath.Bootstrap.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="tests/ClearPath.Cleaning.Tests/ClearPath.Cleaning.Tests.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="tests/ClearPath.Core.Tests/ClearPath.Core.Tests.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="tests/ClearPath.Infrastructure.Tests/ClearPath.Infrastructure.Tests.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="tests/ClearPath.Scanning.Tests/ClearPath.Scanning.Tests.csproj">
       <Platform Project="x64" />
     </Project>
     <Project Path="tests/ClearPath.Windows.Tests/ClearPath.Windows.Tests.csproj">
