@@ -21,7 +21,9 @@ public sealed class CapabilityProbe(
     {
         var results = new Dictionary<string, bool>();
         string? failureDetail = null;
-        var selftestDir = Path.Combine(paths.DataDirectory, "selftest");
+        // Run on the quarantine volume (the default quarantine root sits beside the data folder), so the self-test
+        // exercises the same volume that quarantine and restore actually mutate (docs/15 §11.7).
+        var selftestDir = Path.Combine(paths.DefaultQuarantineDirectory, "selftest");
 
         try
         {
