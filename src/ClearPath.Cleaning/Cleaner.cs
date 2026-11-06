@@ -234,17 +234,18 @@ public sealed class Cleaner(
     public async Task<CleanupResult> RestoreAsync(Guid operationId, IReadOnlyList<long> itemSeqs, RestoreConflictChoice onConflict, CancellationToken cancellationToken)
     {
         RequireCapabilities();
+        // Restore takes the single operation lock under its own record (review M3). Item rows stay under the
+        // source operation, which is where recovery looks for the quarantine folder. Items are read UNDER the lock
+        // so a concurrent operation cannot change them between the read and the action (review L-A).
+        var restoreOp = await journal.BeginOperationAsync("Restore", "Restore", operationId, null, CancellationToken.None).ConfigureAwait(false);
+        return await RunOperationAsync(restoreOp, () => RestoreBodyAsync(operationId, restoreOp, itemSeqs, onConflict, cancellationToken)).ConfigureAwait(false);
+    }
+
+    private async Task<CleanupResult> RestoreBodyAsync(Guid operationId, Guid restoreOp, IReadOnlyList<long> itemSeqs, RestoreConflictChoice onConflict, CancellationToken cancellationToken)
+    {
         var journalItems = (await journal.GetItemsAsync(operationId, cancellationToken).ConfigureAwait(false))
             .Where(i => itemSeqs.Contains(i.Seq) && i.State == ItemState.Quarantined).ToList();
 
-        // Restore takes the single operation lock under its own record (review M3). Item rows stay under the
-        // source operation, which is where recovery looks for the quarantine folder.
-        var restoreOp = await journal.BeginOperationAsync("Restore", "Restore", operationId, null, CancellationToken.None).ConfigureAwait(false);
-        return await RunOperationAsync(restoreOp, () => RestoreBodyAsync(operationId, restoreOp, journalItems, onConflict, cancellationToken)).ConfigureAwait(false);
-    }
-
-    private async Task<CleanupResult> RestoreBodyAsync(Guid operationId, Guid restoreOp, IReadOnlyList<JournalItem> journalItems, RestoreConflictChoice onConflict, CancellationToken cancellationToken)
-    {
         var rootResult = quarantineStore.OpenRoot();
         if (!rootResult.Ok)
         {
@@ -381,18 +382,19 @@ public sealed class Cleaner(
             throw new InvalidOperationException("The purge confirmation is invalid, expired or has already been used.");
         }
 
-        var journalItems = (await journal.GetItemsAsync(challenge.SourceOperationId, cancellationToken).ConfigureAwait(false))
-            .Where(i => challenge.ItemSeqs.Contains(i.Seq)).ToList();
-
         // The purge record holds the lock and the audit trail. Item STATES are written on the SOURCE operation,
-        // which is where the quarantine folder and recovery look for them (review H4).
+        // which is where the quarantine folder and recovery look for them (review H4). Items are read UNDER the
+        // lock (review L-A), so a restore that completes in the meantime cannot be overwritten with "purging".
         var purgeOpId = await journal.BeginOperationAsync("Purge", "Purge", challenge.SourceOperationId,
             $$"""{"nonce":"{{challenge.Nonce}}","text":"{{typedConfirmation}}","atUtc":"{{DateTimeOffset.UtcNow:O}}"}""", CancellationToken.None).ConfigureAwait(false);
-        return await RunOperationAsync(purgeOpId, () => PurgeBodyAsync(purgeOpId, challenge.SourceOperationId, journalItems)).ConfigureAwait(false);
+        return await RunOperationAsync(purgeOpId, () => PurgeBodyAsync(purgeOpId, challenge.SourceOperationId, challenge.ItemSeqs, cancellationToken)).ConfigureAwait(false);
     }
 
-    private async Task<PurgeResult> PurgeBodyAsync(Guid purgeOpId, Guid sourceOpId, IReadOnlyList<JournalItem> journalItems)
+    private async Task<PurgeResult> PurgeBodyAsync(Guid purgeOpId, Guid sourceOpId, IReadOnlyList<long> itemSeqs, CancellationToken cancellationToken)
     {
+        var journalItems = (await journal.GetItemsAsync(sourceOpId, cancellationToken).ConfigureAwait(false))
+            .Where(i => itemSeqs.Contains(i.Seq)).ToList();
+
         var rootResult = quarantineStore.OpenRoot();
         if (!rootResult.Ok)
         {

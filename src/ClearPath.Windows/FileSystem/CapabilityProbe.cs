@@ -15,15 +15,19 @@ namespace ClearPath.Windows.FileSystem;
 /// </summary>
 public sealed class CapabilityProbe(
     IFileSystemReader reader, IFileSystemWriter writer, IDirectoryProvisioner provisioner,
-    IAppPaths paths, CapabilitySettings settings, ILogger<CapabilityProbe> logger) : ICapabilityProbe
+    IAppPaths paths, ISettingsStore appSettings, CapabilitySettings settings, ILogger<CapabilityProbe> logger) : ICapabilityProbe
 {
+    private static readonly string[] RequiredChecks =
+        ["create", "rename_no_overwrite_new", "rename_rejects_overwrite", "hash_preserves_times", "delete_and_verify_absent"];
+
     public CapabilityReport Run()
     {
         var results = new Dictionary<string, bool>();
         string? failureDetail = null;
-        // Run on the quarantine volume (the default quarantine root sits beside the data folder), so the self-test
-        // exercises the same volume that quarantine and restore actually mutate (docs/15 §11.7).
-        var selftestDir = Path.Combine(paths.DefaultQuarantineDirectory, "selftest");
+        // Test the same location QuarantineStore uses (the configured one, or the default), so the self-test covers the
+        // volume that quarantine and restore actually mutate (docs/15 §11.7, review M-E).
+        var location = appSettings.Current.QuarantineLocation ?? paths.DefaultQuarantineDirectory;
+        var selftestDir = Path.Combine(location, "selftest");
 
         try
         {
@@ -87,7 +91,8 @@ public sealed class CapabilityProbe(
             }
 
             settings.RenameExSupported = results.GetValueOrDefault("rename_no_overwrite_new") && results.GetValueOrDefault("rename_rejects_overwrite");
-            settings.AllPassed = results.Values.All(v => v);
+            // Fail closed: every required check must have run and passed. A check that could not be recorded is a failure.
+            settings.AllPassed = RequiredChecks.All(k => results.GetValueOrDefault(k));
         }
         catch (Exception ex)
         {
@@ -136,7 +141,7 @@ public sealed class CapabilityProbe(
                 logger.LogWarning("Could not remove self-test directory: {Detail}", result.Detail);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
             logger.LogWarning(ex, "Could not remove self-test directory");
         }

@@ -114,9 +114,9 @@ public sealed class FileSystemReader : IFileSystemReader
         var status = NativeIo.OpenDirectory(raw, name,
             NativeMethods.FILE_LIST_DIRECTORY | NativeMethods.FILE_TRAVERSE | NativeMethods.FILE_READ_ATTRIBUTES | NativeMethods.SYNCHRONIZE, share, out var handle);
         if (status != 0) return null;
-        var attrs = HandleQueries.GetAttributes(handle!);
+        var attrs = NativeIo.AttrsOrClose(handle!);
         if ((attrs & NativeMethods.FILE_ATTRIBUTE_REPARSE_POINT) != 0) { handle!.Dispose(); return null; }
-        var (vs, id) = HandleQueries.GetFileId(handle!);
+        var (vs, id) = NativeIo.IdOrClose(handle!);
         return new NativeDirectoryHandle(handle!, new FileIdentity(vs, id));
     }
 
@@ -125,7 +125,7 @@ public sealed class FileSystemReader : IFileSystemReader
         var raw = Raw(parent);
         var status = NativeIo.OpenFile(raw, name, NativeMethods.FILE_READ_ATTRIBUTES | NativeMethods.SYNCHRONIZE, NativeIo.ShareAll, out var handle);
         if (status != 0) return null;
-        var (vs, id) = HandleQueries.GetFileId(handle!);
+        var (vs, id) = NativeIo.IdOrClose(handle!);
         return new NativeFileHandle(handle!, new FileIdentity(vs, id));
     }
 
@@ -198,7 +198,7 @@ public sealed class FileSystemReader : IFileSystemReader
     {
         var raw = Raw(handle);
         var basic = NativeIo.BasicInfo(raw);
-        var (volumeSerial, fileId) = HandleQueries.GetFileId(raw);
+        var (volumeSerial, fileId) = NativeIo.IdOrClose(raw);
         uint linkCount = 1; bool deletePending = false;
         if (!handle.IsDirectory)
         {
@@ -234,7 +234,7 @@ public sealed class FileSystemReader : IFileSystemReader
             if (status is NativeMethods.STATUS_OBJECT_NAME_NOT_FOUND or NativeMethods.STATUS_OBJECT_PATH_NOT_FOUND) return ProbeOutcome.Absent;
             if (status == NativeMethods.STATUS_OBJECT_NAME_NOT_FOUND || status == NativeMethods.STATUS_OBJECT_PATH_NOT_FOUND) return ProbeOutcome.Absent;
             if (status != 0) return ProbeOutcome.Unverifiable; // access denied, sharing violation, etc.: NOT evidence of absence (review M5)
-            var (vs, id) = HandleQueries.GetFileId(handle!);
+            var (vs, id) = NativeIo.IdOrClose(handle!);
             var actual = new FileIdentity(vs, id);
             return expected is { } e && e.Equals(actual) ? ProbeOutcome.SameIdentity : ProbeOutcome.OtherIdentity;
         }
@@ -260,7 +260,7 @@ public sealed class FileSystemReader : IFileSystemReader
             {
                 // Fall back to the volume serial already available via FileIdInfo (proven reliable); the
                 // filesystem name is unknown in this case, which callers must treat as "not confirmed NTFS".
-                var (fallbackSerial, _) = HandleQueries.GetFileId(raw);
+                var (fallbackSerial, _) = NativeIo.IdOrClose(raw);
                 serial = (uint)fallbackSerial;
                 name = string.Empty;
             }

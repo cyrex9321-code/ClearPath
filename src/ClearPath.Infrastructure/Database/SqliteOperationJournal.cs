@@ -82,6 +82,8 @@ public sealed class SqliteOperationJournal(SqliteConnectionFactory factory) : IO
                 src_volume_serial=$svs, src_size=$ssize, src_creation_time=$sct, src_lastwrite_time=$swt, src_lastaccess_time=$sat, src_change_time=$sch,
                 original_sha256=$hash, quarantine_path=$qpath, q_volume_serial=$qvs, restore_path=$rpath, r_volume_serial=$rvs,
                 quarantined_utc = CASE WHEN $qutc IS NOT NULL THEN $qutc ELSE operation_items.quarantined_utc END,
+                attention_kind = CASE WHEN $terminal = 1 THEN 'None' ELSE operation_items.attention_kind END,
+                attention_reason = CASE WHEN $terminal = 1 THEN NULL ELSE operation_items.attention_reason END,
                 source_relative_json = CASE WHEN $extra IS NOT NULL THEN $extra ELSE operation_items.source_relative_json END,
                 src_file_id_hex = CASE WHEN $sfid IS NOT NULL THEN $sfid ELSE operation_items.src_file_id_hex END,
                 q_file_id_hex = CASE WHEN $qfid IS NOT NULL THEN $qfid ELSE operation_items.q_file_id_hex END,
@@ -107,6 +109,8 @@ public sealed class SqliteOperationJournal(SqliteConnectionFactory factory) : IO
         cmd.Parameters.AddWithValue("$qfid", facts.QuarantineIdentity is { } qid ? SqlConvert.Hex(qid.FileId) : (object)DBNull.Value);
         cmd.Parameters.AddWithValue("$rfid", facts.RestoreIdentity is { } rid ? SqlConvert.Hex(rid.FileId) : (object)DBNull.Value);
         cmd.Parameters.AddWithValue("$rvs", SqlConvert.OrNull(facts.RestoreIdentity?.VolumeSerial));
+        // A terminal state means the outcome is known: any earlier retryable/blocking attention is resolved (review M-B).
+        cmd.Parameters.AddWithValue("$terminal", IsTerminal(state) ? 1 : 0);
         cmd.Parameters.AddWithValue("$qutc", state == ItemState.Quarantined ? SqlConvert.Time(DateTimeOffset.UtcNow) : (object)DBNull.Value);
         cmd.Parameters.AddWithValue("$extra", facts.ParentDirectoryCanonicalPath is null
             ? DBNull.Value
@@ -114,6 +118,9 @@ public sealed class SqliteOperationJournal(SqliteConnectionFactory factory) : IO
                 facts.ParentDirectoryIdentity is { } pid ? SqlConvert.Hex(pid.FileId) : null, facts.OriginalFileName)));
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    private static bool IsTerminal(ItemState state) => state is ItemState.Quarantined or ItemState.RolledBack or ItemState.Restored
+        or ItemState.Purged or ItemState.Skipped or ItemState.Failed;
 
     public async Task SetAttentionAsync(Guid operationId, long seq, AttentionKind kind, string? reason, CancellationToken cancellationToken)
     {

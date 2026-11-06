@@ -25,7 +25,7 @@ public sealed class FileSystemWriter(ICapabilitySettings capabilities) : IFileSy
             NativeMethods.FILE_NON_DIRECTORY_FILE | NativeMethods.FILE_SYNCHRONOUS_IO_NONALERT | NativeMethods.FILE_OPEN_REPARSE_POINT | NativeMethods.FILE_COMPLETE_IF_OPLOCKED,
             out var handle);
         if (status != 0) return null;
-        var (vs, id) = HandleQueries.GetFileId(handle!);
+        var (vs, id) = NativeIo.IdOrClose(handle!);
         return new NativeFileHandle(handle!, new FileIdentity(vs, id));
     }
 
@@ -106,7 +106,7 @@ public sealed class FileSystemWriter(ICapabilitySettings capabilities) : IFileSy
         var raw = FileSystemReader.Raw(parent);
         var status = NativeIo.CreateDirectory(raw, name, out var handle);
         if (status != 0) return null;
-        var (vs, id) = HandleQueries.GetFileId(handle!);
+        var (vs, id) = NativeIo.IdOrClose(handle!);
         return new NativeDirectoryHandle(handle!, new FileIdentity(vs, id));
     }
 
@@ -115,7 +115,7 @@ public sealed class FileSystemWriter(ICapabilitySettings capabilities) : IFileSy
         var raw = FileSystemReader.Raw(parent);
         var status = NativeIo.CreateFile(raw, name, out var handle);
         if (status != 0) return null;
-        var (vs, id) = HandleQueries.GetFileId(handle!);
+        var (vs, id) = NativeIo.IdOrClose(handle!);
         return new NativeFileHandle(handle!, new FileIdentity(vs, id));
     }
 

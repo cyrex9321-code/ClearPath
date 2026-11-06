@@ -94,6 +94,7 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
         }
 
         var current = root.Chain.Leaf;
+        IFileHandle? openFile = null; // released in the catch if an exception fires after the open (review M-D)
         var opened = new List<IDirectoryHandle>();
         try
         {
@@ -113,6 +114,7 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
             // Opened for mutation (not read-only): this handle is what Cleaning goes on to hash, suspend
             // times on and rename, which need FILE_READ_DATA/FILE_WRITE_ATTRIBUTES/DELETE respectively.
             var file = writer.OpenChildFileForMutation(current, fileName);
+            openFile = file;
             if (file is null)
             {
                 DisposeAll(opened);
@@ -148,6 +150,7 @@ public sealed class PathGuard(IFileSystemReader reader, IFileSystemWriter writer
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or System.ComponentModel.Win32Exception)
         {
+            openFile?.Dispose();
             DisposeAll(opened);
             return GuardResult<ValidatedTarget>.Reject(SkipReason.AccessDenied, ex.Message);
         }

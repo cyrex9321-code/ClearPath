@@ -73,7 +73,9 @@ public sealed partial class QuickCleanViewModel(
 
         try
         {
-            var result = await scanner.ScanAsync(new ScanRequest([]), progress, _scanCts.Token).ConfigureAwait(true);
+            // Off the UI thread: the engine's database calls complete synchronously, so awaiting directly would run the
+            // whole scan on the dispatcher and freeze the window (measured: unresponsive during a scan).
+            var result = await Task.Run(() => scanner.ScanAsync(new ScanRequest([]), progress, _scanCts.Token)).ConfigureAwait(true);
             _scanId = result.ScanId;
             ApplyResult(result);
             var totalFiles = Categories.Sum(c => c.FileCount);
@@ -176,7 +178,7 @@ public sealed partial class QuickCleanViewModel(
         {
             var progress = new Progress<int>(n =>
                 ScanStatusText = $"Quarantining… {Formatters.Count(n)} of {Formatters.Count(seqs.Count)}");
-            var result = await cleaner.QuarantineAsync(new QuarantineRequest(scanId, seqs), progress, CancellationToken.None).ConfigureAwait(true);
+            var result = await Task.Run(() => cleaner.QuarantineAsync(new QuarantineRequest(scanId, seqs), progress, CancellationToken.None)).ConfigureAwait(true);
             ShowQuarantineResult(result);
 
             // The scanned source files are gone (or changed) after quarantine; clear the stale result rather

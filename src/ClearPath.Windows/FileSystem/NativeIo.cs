@@ -159,4 +159,17 @@ internal static unsafe class NativeIo
         }
         return false;
     }
+
+    // Post-open queries: if one throws, the just-opened handle is released rather than leaked (review M-D).
+    internal static (ulong VolumeSerial, UInt128 FileId) IdOrClose(SafeFileHandle handle)
+    {
+        try { return HandleQueries.GetFileId(handle); }
+        catch { handle.Dispose(); throw; }
+    }
+
+    internal static uint AttrsOrClose(SafeFileHandle handle)
+    {
+        try { return HandleQueries.GetAttributes(handle); }
+        catch { handle.Dispose(); throw; }
+    }
 }

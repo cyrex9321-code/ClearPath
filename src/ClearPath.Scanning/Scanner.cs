@@ -72,7 +72,8 @@ public sealed class Scanner(IFileSystemReader reader, IPathGuard pathGuard, IRul
                         var key = (rule.Id, snapshot.Identity.VolumeSerial);
                         crossVolume[key] = (crossVolume.GetValueOrDefault(key).Files + 1, crossVolume.GetValueOrDefault(key).Bytes + snapshot.Size);
                     }
-                    progress?.Report(new ScanProgress(rule.Id, ruleFiles, ruleFiles, ruleBytes, totalSkipped));
+                    // Throttled: one UI update per 200 files, not per file (a per-file update floods the dispatcher).
+                    if (ruleFiles % 200 == 0) progress?.Report(new ScanProgress(rule.Id, ruleFiles, ruleFiles, ruleBytes, totalSkipped));
                 }
             }
             catch (UnauthorizedAccessException ex)

@@ -122,7 +122,7 @@ public sealed partial class HistoryViewModel(
         row.IsBusy = true;
         try
         {
-            var result = await cleaner.RestoreAsync(row.OperationId, row.QuarantinedSeqs, RestoreConflictChoice.KeepBoth, CancellationToken.None);
+            var result = await Task.Run(() => cleaner.RestoreAsync(row.OperationId, row.QuarantinedSeqs, RestoreConflictChoice.KeepBoth, CancellationToken.None));
             ShowRestoreResult(result);
             await RefreshAsync();
         }
@@ -159,7 +159,7 @@ public sealed partial class HistoryViewModel(
 
             if (!dialogs.ConfirmPurge(challenge)) return;
 
-            var result = await cleaner.PurgeAsync(challenge.Nonce, challenge.RequiredText, CancellationToken.None);
+            var result = await Task.Run(() => cleaner.PurgeAsync(challenge.Nonce, challenge.RequiredText, CancellationToken.None));
             ShowPurgeResult(result);
             await RefreshAsync();
         }

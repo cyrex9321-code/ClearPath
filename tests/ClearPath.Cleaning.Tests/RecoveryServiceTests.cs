@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using ClearPath.Core.Abstractions;
 using ClearPath.Core.Cleaning;
@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace ClearPath.Cleaning.Tests;
 
 /// <summary>
-/// Startup crash-recovery reconciliation (docs/15 §8.1), by directly writing journal rows into a
+/// Startup crash-recovery reconciliation (docs/15 Â§8.1), by directly writing journal rows into a
 /// non-terminal state via IOperationJournal and placing the real files that would exist at that crash
 /// point, then asserting IRecoveryService.ReconcileAsync reaches the documented resolution - never by
 /// trusting a return code, always by hash/identity verification against real files.
@@ -50,7 +50,10 @@ public sealed class RecoveryServiceTests : IAsyncLifetime
         try
         {
             WriteBin(opDir, 1, content);
-            var facts = new ItemFacts("src\\file.txt", new FileIdentity(1, 1), content.Length, null, Hash(content), null, null, null, null, null);
+            // Recovery matches by identity (review M-A), so the journal must carry the file's REAL identity.
+            FileIdentity realIdentity;
+            using (var f = _h.Services.GetRequiredService<ClearPath.Core.FileSystem.IFileSystemReader>().OpenChildFileForRead(opDir, "1.bin")!) realIdentity = f.Identity;
+            var facts = new ItemFacts("src\\file.txt", realIdentity, content.Length, null, Hash(content), null, null, null, null, null);
             await Journal.RecordItemAsync(operationId, 1, ItemState.Moving, facts, CancellationToken.None);
 
             var report = await Recovery.ReconcileAsync(operationId, CancellationToken.None);
@@ -88,7 +91,7 @@ public sealed class RecoveryServiceTests : IAsyncLifetime
     public async Task Item_recovery_cannot_verify_gets_Blocking_or_Retryable_attention_never_silently_dropped()
     {
         // Validated: the pre-mutation state. Facts are present but nothing was ever written/moved for this
-        // seq - the real crash-point table (docs/15 §8) expects "Validated" alone to roll back cleanly
+        // seq - the real crash-point table (docs/15 Â§8) expects "Validated" alone to roll back cleanly
         // (source untouched); to exercise the "cannot verify" branch we use Moving with NO identity/hash
         // recorded at all, which RecoveryService explicitly cannot reason about.
         var operationId = await Journal.BeginOperationAsync("Quarantine", "Quarantine", null, null, CancellationToken.None);
@@ -123,3 +126,4 @@ public sealed class RecoveryServiceTests : IAsyncLifetime
         items.Single().State.Should().Be(ItemState.RolledBack);
     }
 }
+

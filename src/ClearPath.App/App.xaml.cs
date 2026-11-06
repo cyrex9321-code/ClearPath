@@ -102,21 +102,8 @@ public partial class App : Application
     {
         var reports = services.GetRequiredService<StartupReports>();
 
-        try
-        {
-            var probe = services.GetRequiredService<ICapabilityProbe>();
-            var report = await Task.Run(probe.Run).ConfigureAwait(false);
-            reports.SetCapability(report);
-            if (!report.AllPassed)
-            {
-                logger.LogWarning("Capability self-test reported a failure: {Detail}", report.FailureDetail);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Capability self-test failed to run");
-        }
-
+        // Recovery runs first, while the cleaning gate is still closed, so no user operation can interleave with it
+        // (review H-A). The self-test below is what opens the gate.
         try
         {
             var recovery = services.GetRequiredService<IRecoveryService>();
@@ -130,6 +117,21 @@ public partial class App : Application
         catch (Exception ex)
         {
             logger.LogError(ex, "Startup recovery reconciliation failed");
+        }
+
+        try
+        {
+            var probe = services.GetRequiredService<ICapabilityProbe>();
+            var report = await Task.Run(probe.Run).ConfigureAwait(false);
+            reports.SetCapability(report);
+            if (!report.AllPassed)
+            {
+                logger.LogWarning("Capability self-test reported a failure: {Detail}", report.FailureDetail);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Capability self-test failed to run");
         }
     }
 

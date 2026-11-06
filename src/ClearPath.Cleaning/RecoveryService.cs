@@ -148,9 +148,13 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
     {
         var f = item.Facts;
         if (f.ParentDirectoryCanonicalPath is null || f.RestorePath is null || f.OriginalSha256 is null) return null;
+        // A restore renames the quarantined file, so the target must carry the SAME file identity. A file that merely
+        // has the same name or content is someone else's and is never claimed (review M-A).
+        var identity = f.QuarantineIdentity ?? f.SourceIdentity;
+        if (identity is null) return null;
         using var chain = reader.OpenChain(f.ParentDirectoryCanonicalPath, forMutation: true);
-        var probe = reader.ProbeName(chain.Leaf, f.RestorePath, null);
-        if (probe is ProbeOutcome.Absent) return null;
+        var probe = reader.ProbeName(chain.Leaf, f.RestorePath, identity.Value);
+        if (probe is ProbeOutcome.Absent or ProbeOutcome.OtherIdentity) return null;
         if (probe is ProbeOutcome.Unverifiable or ProbeOutcome.DeletePending)
         {
             await SetAttentionAsync(item, AttentionKind.Retryable, "The restore target could not be checked yet; it will be retried.").ConfigureAwait(false);
@@ -174,6 +178,32 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
         return ReconcileOutcome.Attention;
     }
 
+    private enum Presence { Absent, Present, Unobservable, Conflict }
+
+    /// <summary>
+    /// Decides whether this item's own quarantine file is there, by IDENTITY (a rename keeps the file ID), never by name
+    /// alone (review M-A). A locked or unreadable copy is Unobservable (retry), not Absent. A different file under the
+    /// name is a Conflict (never claimed as ours).
+    /// </summary>
+    private Presence ProbeQuarantine(IQuarantineDirectory opDir, JournalItem item, out IFileHandle? handle)
+    {
+        handle = null;
+        var identity = item.Facts.QuarantineIdentity ?? item.Facts.SourceIdentity;
+        if (identity is null) return Presence.Unobservable;
+        switch (reader.ProbeName(opDir, $"{item.Seq}.bin", identity.Value))
+        {
+            case ProbeOutcome.Absent:
+                return Presence.Absent;
+            case ProbeOutcome.SameIdentity:
+                handle = quarantineStore.OpenQuarantined(opDir, item.Seq);
+                return handle is null ? Presence.Unobservable : Presence.Present;
+            case ProbeOutcome.OtherIdentity:
+                return Presence.Conflict;
+            default:
+                return Presence.Unobservable;
+        }
+    }
+
     private async Task<ReconcileOutcome> ReconcileMovingAsync(JournalItem item, IQuarantineDirectory? opDir)
     {
         if (item.Facts.SourceIdentity is null || item.Facts.OriginalSha256 is null)
@@ -182,21 +212,29 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
             return ReconcileOutcome.Attention;
         }
 
-        // Check quarantine first (the common post-rename crash point).
         if (opDir is not null)
         {
-            using var quarantined = quarantineStore.OpenQuarantined(opDir, item.Seq);
-            if (quarantined is not null)
+            switch (ProbeQuarantine(opDir, item, out var quarantined))
             {
-                var hash = writer.HashSha256(quarantined, CancellationToken.None);
-                if (string.Equals(hash, item.Facts.OriginalSha256, StringComparison.Ordinal))
-                {
-                    await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Quarantined,
-                        item.Facts with { QuarantineIdentity = quarantined.Identity }, CancellationToken.None).ConfigureAwait(false);
-                    return ReconcileOutcome.Resolved;
-                }
-                await SetAttentionAsync(item, AttentionKind.Blocking, "The quarantined copy does not match the recorded hash.").ConfigureAwait(false);
-                return ReconcileOutcome.Attention;
+                case Presence.Present:
+                    using (quarantined)
+                    {
+                        var hash = writer.HashSha256(quarantined!, CancellationToken.None);
+                        if (string.Equals(hash, item.Facts.OriginalSha256, StringComparison.Ordinal))
+                        {
+                            await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Quarantined,
+                                item.Facts with { QuarantineIdentity = quarantined!.Identity }, CancellationToken.None).ConfigureAwait(false);
+                            return ReconcileOutcome.Resolved;
+                        }
+                    }
+                    await SetAttentionAsync(item, AttentionKind.Blocking, "The quarantined copy does not match the recorded hash.").ConfigureAwait(false);
+                    return ReconcileOutcome.Attention;
+                case Presence.Unobservable:
+                    await SetAttentionAsync(item, AttentionKind.Retryable, "The quarantined copy could not be checked yet; it will be retried.").ConfigureAwait(false);
+                    return ReconcileOutcome.Retry;
+                case Presence.Conflict:
+                    await SetAttentionAsync(item, AttentionKind.Blocking, "A different file occupies this item's quarantine name; nothing was touched.").ConfigureAwait(false);
+                    return ReconcileOutcome.Attention;
             }
         }
 
@@ -214,14 +252,22 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
             await SetAttentionAsync(item, AttentionKind.Blocking, "Cannot verify restore outcome.").ConfigureAwait(false);
             return ReconcileOutcome.Attention;
         }
-        using var quarantined = quarantineStore.OpenQuarantined(opDir, item.Seq);
-        if (quarantined is not null)
+        switch (ProbeQuarantine(opDir, item, out var quarantined))
         {
-            // The rename never completed (or was rolled back by the OS on crash): still quarantined.
-            await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Quarantined, item.Facts, CancellationToken.None).ConfigureAwait(false);
-            return ReconcileOutcome.Resolved;
+            case Presence.Present:
+                quarantined!.Dispose();
+                // The rename never completed: the item is still in quarantine.
+                await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Quarantined, item.Facts, CancellationToken.None).ConfigureAwait(false);
+                return ReconcileOutcome.Resolved;
+            case Presence.Unobservable:
+                await SetAttentionAsync(item, AttentionKind.Retryable, "The quarantined copy could not be checked yet; it will be retried.").ConfigureAwait(false);
+                return ReconcileOutcome.Retry;
+            case Presence.Conflict:
+                await SetAttentionAsync(item, AttentionKind.Blocking, "A different file occupies this item's quarantine name; nothing was touched.").ConfigureAwait(false);
+                return ReconcileOutcome.Attention;
         }
-        // Not in quarantine: the restore may have completed before the crash. Confirm by content at the target.
+
+        // Not in quarantine: the restore may have completed before the crash. Confirm by identity and content at the target.
         var atTarget = await TryResolveRestoreTargetAsync(item).ConfigureAwait(false);
         if (atTarget is { } restoredOrRetry) return restoredOrRetry;
         await SetAttentionAsync(item, AttentionKind.Blocking, "The item is neither in quarantine nor at its restore target; it was left untouched.").ConfigureAwait(false);
@@ -240,7 +286,11 @@ public sealed class RecoveryService(IOperationJournal journal, IQuarantineStore 
         switch (outcome)
         {
             case ProbeOutcome.Absent:
+                // Recorded from observed absence only: this session did not witness the removal, so it is reported
+                // separately from verified purges (docs/15 §8.1, review M-C).
                 await journal.RecordItemAsync(item.OperationId, item.Seq, ItemState.Purged, item.Facts, CancellationToken.None).ConfigureAwait(false);
+                await journal.SetAttentionAsync(item.OperationId, item.Seq, AttentionKind.None,
+                    "Recorded as purged from observed absence at startup; the removal was not verified by a purge.", CancellationToken.None).ConfigureAwait(false);
                 return ReconcileOutcome.Resolved;
             case ProbeOutcome.DeletePending:
                 await SetAttentionAsync(item, AttentionKind.Retryable, "Removal is still pending.").ConfigureAwait(false);
